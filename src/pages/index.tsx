@@ -1,3 +1,4 @@
+import { useRetention } from "@/hooks/useRetention";
 import Head from "next/head";
 import { useSession, signIn } from "next-auth/react";
 import { motion } from "framer-motion";
@@ -164,6 +165,7 @@ interface HomeProps {
 
 export default function Home({ leaderboard, user: initialUser, curriculum, bonusProblems = [], todaysProblems = [], completedProblemIds = [], isDailyGoalComplete = false }: HomeProps) {
   const { data: session, status } = useSession();
+  useRetention(isDailyGoalComplete, status);
   const router = useRouter();
 
   useEffect(() => {
