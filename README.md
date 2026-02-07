@@ -1,29 +1,99 @@
-# Create T3 App
+# AlgoDaily 🦉
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+> **Master Technical Interviews, Two Problems at a Time.**
 
-## What's next? How do I make an app with this?
+AlgoDaily is a gamified coding interview preparation platform. It focuses on consistency through a streak system, curated daily problems, and a seamless developer experience.
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+![Dashboard Preview](/public/dashboard-preview.png)
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## ✨ Features
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+- **Daily Duo**: A curated pair of problems every day.
+- **Streak System**: Gamified consistency tracking.
+- **Live Code Compiler**: Integrated Monaco Editor.
+- **Leaderboards**: Compete with other users globally.
+- **Curriculum Track**: Guided path through data structures and algorithms.
 
-## Learn More
+## 🛠️ Tech Stack
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+- **Framework**: [Next.js 15](https://nextjs.org/) (React 19)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/)
+- **Database**: [Prisma](https://www.prisma.io/) + SQLite (Dev) / Postgres (Prod)
+- **Auth**: [NextAuth.js](https://next-auth.js.org/) (GitHub Provider)
+- **Editor**: [Monaco Editor](https://microsoft.github.io/monaco-editor/)
+- **PWA**: Fully installable Progressive Web App
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+## 🚀 Getting Started
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+### Prerequisites
 
-## How do I deploy this?
+- Node.js 18+
+- npm or pnpm
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+### Installation
+
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/yourusername/algodaily.git
+    cd algodaily
+    ```
+
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
+
+3.  **Environment Setup**
+    Copy the example env file and fill in your credentials:
+    ```bash
+    cp .env.example .env
+    ```
+    *You will need a GitHub OAuth App for NextAuth and a `DATABASE_URL` (defaults to local SQLite).*
+
+4.  **Database Setup**
+    ```bash
+    npx prisma db push
+    npm run prisma:seed  # Seeds the curriculum data
+    ```
+
+5.  **Run Development Server**
+    ```bash
+    npm run dev
+    ```
+    Open [http://localhost:3000](http://localhost:3000) to see the app.
+
+## 🧪 Testing
+
+We use **Jest** for unit tests and **Playwright** for End-to-End (E2E) testing.
+
+### Unit Tests
+Run the test suite for components and utilities:
+```bash
+npm run test
+```
+
+### E2E Tests
+Run the end-to-end user flow tests:
+```bash
+npm run test:e2e
+```
+
+## 📂 Project Structure
+
+- `src/pages`: Next.js pages and API routes.
+- `src/components`: Reusable UI components (Stats, Editors, Cards).
+- `src/lib`: Utilities (Database, Test Runner, Sounds).
+- `prisma`: Database schema and seed scripts.
+
+## 🎨 Design System
+
+The UI is built on a "Deep Space" theme:
+- **Background**: `#05050A` (Deep Black)
+- **Primary Accent**: `#D946EF` (Neon Fuchsia)
+- **Secondary Accent**: `#06B6D4` (Cyan)
+- **Typography**: `Inter` (UI) + `JetBrains Mono` (Code/Data)
+
+
+---
+*Built with ❤️ by [Knevari](https://github.com/knevari)*
