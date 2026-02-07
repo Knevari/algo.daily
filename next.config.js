@@ -20,6 +20,7 @@ const config = {
     locales: ["en"],
     defaultLocale: "en",
   },
+  transpilePackages: ["monaco-editor", "monaco-vim"],
 };
 
 export default pwaConfig(config);
