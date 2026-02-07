@@ -14,10 +14,9 @@ interface Problem {
 interface BonusProblemsProps {
     problems: Problem[];
     completedProblemIds: string[];
-    onVerify: (problemId: string) => Promise<boolean>;
 }
 
-export function BonusProblems({ problems, completedProblemIds, onVerify }: BonusProblemsProps) {
+export function BonusProblems({ problems, completedProblemIds }: BonusProblemsProps) {
     if (problems.length === 0) return null;
 
     return (
@@ -51,8 +50,8 @@ export function BonusProblems({ problems, completedProblemIds, onVerify }: Bonus
                         <div className="group flex items-center justify-between p-3 bg-bg-card/30 border border-border/50 rounded-sm hover:bg-bg-tertiary hover:border-accent-primary/30 transition-all">
                             <div className="flex items-center gap-4 flex-1 min-w-0">
                                 <span className={`shrink-0 text-[10px] font-mono w-14 text-center py-0.5 rounded border ${problem.difficulty === 'Easy' ? 'text-accent-green border-accent-green/20 bg-accent-green/5' :
-                                        problem.difficulty === 'Medium' ? 'text-accent-orange border-accent-orange/20 bg-accent-orange/5' :
-                                            'text-error border-error/20 bg-error/5'
+                                    problem.difficulty === 'Medium' ? 'text-accent-orange border-accent-orange/20 bg-accent-orange/5' :
+                                        'text-error border-error/20 bg-error/5'
                                     }`}>
                                     {problem.difficulty}
                                 </span>
@@ -65,20 +64,13 @@ export function BonusProblems({ problems, completedProblemIds, onVerify }: Bonus
                             <div className="flex items-center gap-3 shrink-0 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Link
                                     href={`/solve/${problem.slug}`}
-                                    className="text-xs font-mono text-text-muted hover:text-accent-primary transition-colors hover:underline"
-                                >
-                                    view_details
-                                </Link>
-                                <button
-                                    onClick={() => onVerify(problem.id)}
-                                    disabled={completedProblemIds.includes(problem.id)}
                                     className={`px-3 py-1 text-xs font-mono font-bold rounded-sm transition-all ${completedProblemIds.includes(problem.id)
-                                            ? 'bg-accent-green/10 text-accent-green cursor-default'
-                                            : 'bg-accent-primary text-bg-primary hover:bg-accent-primary/90'
+                                        ? 'bg-accent-green/10 text-accent-green cursor-default'
+                                        : 'bg-accent-primary text-bg-primary hover:bg-accent-primary/90'
                                         }`}
                                 >
                                     {completedProblemIds.includes(problem.id) ? 'DONE' : 'SOLVE'}
-                                </button>
+                                </Link>
                             </div>
                         </div>
                     </motion.div>

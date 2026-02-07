@@ -156,9 +156,12 @@ interface HomeProps {
   user?: any;
   curriculum?: CurriculumInfo;
   bonusProblems?: Problem[];
+  todaysProblems?: Problem[];
+  completedProblemIds?: string[];
+  isDailyGoalComplete?: boolean;
 }
 
-export default function Home({ leaderboard, user: initialUser, curriculum, bonusProblems = [] }: HomeProps) {
+export default function Home({ leaderboard, user: initialUser, curriculum, bonusProblems = [], todaysProblems = [], completedProblemIds = [], isDailyGoalComplete = false }: HomeProps) {
   const { data: session, status } = useSession();
 
   // Use session user merged with db user if available
@@ -199,32 +202,6 @@ export default function Home({ leaderboard, user: initialUser, curriculum, bonus
     );
   }
 
-  const handleVerifyProblem = async (problemId: string): Promise<boolean> => {
-    try {
-      const response = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ problemId }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        // playSuccess check is implicit in sounds.playSuccess() call
-        sounds.playSuccess();
-        // Optimistic UI updates could go here
-      } else {
-        // Show error/info message (alert for now, toast ideally)
-        alert(result.message);
-      }
-
-      return result.success;
-    } catch (error) {
-      console.error("Verification failed", error);
-      return false;
-    }
-  };
-
   return (
     <>
       <Head>
@@ -234,12 +211,12 @@ export default function Home({ leaderboard, user: initialUser, curriculum, bonus
       </Head>
       <Dashboard
         user={user}
-        todaysProblems={mockProblems}
-        completedProblemIds={[]}
+        todaysProblems={todaysProblems}
+        completedProblemIds={completedProblemIds}
         leaderboard={leaderboard}
-        onVerifyProblem={handleVerifyProblem}
         curriculum={curriculum}
         bonusProblems={bonusProblems}
+        isDailyGoalComplete={isDailyGoalComplete}
       />
     </>
   );
@@ -277,7 +254,11 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       where: { userId: session.user.id },
     }),
     db.curriculumWeek.findMany({
-      include: { problems: true },
+      include: {
+        problems: {
+          include: { problem: true }
+        }
+      },
       orderBy: { weekNumber: "asc" },
     }),
     db.userProblem.findMany({
@@ -291,6 +272,74 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const currentWeekData = allWeeks.find(w => w.weekNumber === currentWeekNum);
   const completedIds = completedProblemIds.map(p => p.problemId);
 
+  // Calculate "Today's Problems" (Daily Duo)
+  // Logic: Find the first day in the current week that isn't fully completed.
+  const currentWeekProblems = currentWeekData ? currentWeekData.problems : [];
+  let targetDay = 1;
+  const daysInWeek = 7;
+  let isDailyGoalComplete = false;
+
+  // We need to fetch completion times to enforce the daily cap
+  // Fetch completed user problems with timestamps
+  const completedUserProblems = await db.userProblem.findMany({
+    where: { userId: session.user.id },
+    select: { problemId: true, completedAt: true },
+  });
+
+  const completedMap = new Map(completedUserProblems.map(p => [p.problemId, p.completedAt]));
+
+  for (let d = 1; d <= daysInWeek; d++) {
+    const daysProblems = currentWeekProblems.filter(p => p.dayNumber === d);
+    if (daysProblems.length === 0) continue;
+
+    // Check if all problems for this day are completed
+    const allCompleted = daysProblems.every(p => completedIds.includes(p.problemId));
+
+    if (!allCompleted) {
+      targetDay = d;
+
+      // Linear Progression / Daily Cap Logic:
+      // If we are looking at a day > 1, strictly check if the PREVIOUS day was completed TODAY.
+      // If previous day was completed TODAY, then the user has reached their daily limit (unless they are catching up multiple days in the past, but the requirement implies a strict "one day per day" once caught up).
+      // Actually, a simpler interpretation of "linear program, only extra credits available" is:
+      // If I finish Day X *today*, I cannot start Day X+1 until tomorrow.
+
+      if (d > 1) {
+        // Check previous day completion time
+        const prevDayProblems = currentWeekProblems.filter(p => p.dayNumber === d - 1);
+
+        // When was the LAST problem of the previous day completed?
+        let lastCompletionTime = 0;
+        prevDayProblems.forEach(p => {
+          const t = completedMap.get(p.problemId);
+          if (t && t.getTime() > lastCompletionTime) {
+            lastCompletionTime = t.getTime();
+          }
+        });
+
+        if (lastCompletionTime > 0) {
+          const completionDate = new Date(lastCompletionTime);
+          const today = new Date();
+
+          // Check if same day (UTC or local? Server is UTC usually, let's stick to simple date comparison)
+          if (completionDate.toDateString() === today.toDateString()) {
+            // Previous day was finished today. Cap reached.
+            isDailyGoalComplete = true;
+          }
+        }
+      }
+
+      break;
+    }
+    // If it's the last day and it's completed, we still show the last day (or empty?)
+    if (d === daysInWeek) targetDay = daysInWeek;
+  }
+
+  // If daily goal is complete, we DO NOT return today's problems.
+  const todaysProblemRecords = isDailyGoalComplete
+    ? []
+    : currentWeekProblems.filter(p => p.dayNumber === targetDay);
+
   const weekProgress = currentWeekData
     ? (currentWeekData.problems.filter(p => completedIds.includes(p.problemId)).length / currentWeekData.problems.length) * 100
     : 0;
@@ -302,6 +351,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   // Get bonus problems (fetch a larger set of uncompleted problems for "Extra Credit")
   // Filter by the current week's category to be contextually relevant
+  // Get bonus problems (fetch a larger set of uncompleted problems for "Extra Credit")
+  // Filter by the current week's category to be contextually relevant
   const currentCategory = currentWeekData?.category || 'Arrays & Hashing';
 
   const bonusProblemRecords = await db.problem.findMany({
@@ -310,7 +361,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
       category: currentCategory, // Filter by current week's category
     },
     take: 20,
-    orderBy: { difficulty: 'asc' }, // Show easier ones first for "Extra Credit" flow, or 'desc' if they want challenge? User didn't specify, but usually extra credit implies "more work". Let's stick to a mix or just let them be. 'desc' was previous. Let's try 'asc' to encourage solving. Actually user said "show dynamic programming problems if DP week".
+    orderBy: { difficulty: 'asc' },
   });
 
   // Fallback: If no problems found in category (e.g. they finished them all), fetch any uncompleted
@@ -350,7 +401,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         weekProgress: Math.round(weekProgress),
         totalProgress: Math.round(totalProgress),
       },
+      todaysProblems: todaysProblemRecords.map(cp => ({
+        id: (cp as any).problem.id,
+        title: (cp as any).problem.title,
+        slug: (cp as any).problem.slug,
+        difficulty: (cp as any).problem.difficulty,
+        category: (cp as any).problem.category,
+        externalUrl: (cp as any).problem.externalUrl,
+      })),
+      completedProblemIds: completedIds, // Pass real completed IDs
       bonusProblems,
+      isDailyGoalComplete,
     },
   };
 };

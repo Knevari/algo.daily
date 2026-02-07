@@ -11,10 +11,114 @@ const curriculum = [
         category: "Arrays & Hashing",
         problems: [
             // Day 1
-            { slug: "two-sum", title: "Two Sum", difficulty: "Easy", day: 1, order: 1 },
-            { slug: "contains-duplicate", title: "Contains Duplicate", difficulty: "Easy", day: 1, order: 2 },
+            {
+                slug: "two-sum",
+                title: "Two Sum",
+                difficulty: "Easy",
+                day: 1,
+                order: 1,
+                testCases: JSON.stringify([
+                    { input: [[2, 7, 11, 15], 9], expected: [0, 1] },
+                    { input: [[3, 2, 4], 6], expected: [1, 2] },
+                    { input: [[3, 3], 6], expected: [0, 1] }
+                ]),
+                description: `Given an array of integers \`nums\` and an integer \`target\`, return indices of the two numbers such that they add up to \`target\`.
+
+You may assume that each input would have **exactly one solution**, and you may not use the same element twice.
+
+You can return the answer in any order.`,
+                starterCode: JSON.stringify({
+                    javascript: `function solution(nums, target) {
+    // Write your code here
+    
+    return [];
+}`,
+                    python: `def solution(nums, target):
+    # Write your code here
+    
+    return []`,
+                    cpp: `class Solution {
+public:
+    vector<int> twoSum(vector<int>& nums, int target) {
+        
+    }
+};`,
+                    java: `class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        
+    }
+}`,
+                    rust: `impl Solution {
+    pub fn two_sum(nums: Vec<i32>, target: i32) -> Vec<i32> {
+        vec![]
+    }
+}`
+                })
+            },
+            {
+                slug: "contains-duplicate",
+                title: "Contains Duplicate",
+                difficulty: "Easy",
+                day: 1,
+                order: 2,
+                testCases: JSON.stringify([
+                    { input: [[1, 2, 3, 1]], expected: true },
+                    { input: [[1, 2, 3, 4]], expected: false },
+                    { input: [[1, 1, 1, 3, 3, 4, 3, 2, 4, 2]], expected: true }
+                ]),
+                description: `Given an integer array \`nums\`, return \`true\` if any value appears **at least twice** in the array, and return \`false\` if every element is distinct.`,
+                starterCode: JSON.stringify({
+                    javascript: `function solution(nums) {
+    // Write your code here
+    
+}`,
+                    python: `def solution(nums):
+    # Write your code here
+    
+    return False`,
+                    cpp: `class Solution {
+public:
+    bool containsDuplicate(vector<int>& nums) {
+        
+    }
+};`,
+                    java: `class Solution {
+    public boolean containsDuplicate(int[] nums) {
+        
+    }
+}`
+                })
+            },
             // Day 2
-            { slug: "valid-anagram", title: "Valid Anagram", difficulty: "Easy", day: 2, order: 1 },
+            {
+                slug: "valid-anagram",
+                title: "Valid Anagram",
+                difficulty: "Easy",
+                day: 2,
+                order: 1,
+                testCases: JSON.stringify([
+                    { input: ["anagram", "nagaram"], expected: true },
+                    { input: ["rat", "car"], expected: false }
+                ]),
+                description: `Given two strings \`s\` and \`t\`, return \`true\` if \`t\` is an anagram of \`s\`, and \`false\` otherwise.
+
+An **Anagram** is a word or phrase formed by rearranging the letters of a different word or phrase, typically using all the original letters exactly once.`,
+                starterCode: JSON.stringify({
+                    javascript: `function solution(s, t) {
+    // Write your code here
+    
+}`,
+                    python: `def solution(s, t):
+    # Write your code here
+    
+    return False`,
+                    java: `class Solution {
+    public boolean isAnagram(String s, String t) {
+        
+    }
+}`
+                })
+            },
             { slug: "group-anagrams", title: "Group Anagrams", difficulty: "Medium", day: 2, order: 2 },
             // Day 3
             { slug: "top-k-frequent-elements", title: "Top K Frequent Elements", difficulty: "Medium", day: 3, order: 1 },
@@ -310,8 +414,15 @@ async function seedCurriculum() {
                     category: week.category,
                     externalUrl: `https://leetcode.com/problems/${prob.slug}/`,
                     platform: "leetcode",
+                    testCases: (prob as any).testCases || "[]",
+                    description: (prob as any).description || "",
+                    starterCode: (prob as any).starterCode || "{}",
                 },
-                update: {}, // Don't update if exists
+                update: {
+                    testCases: (prob as any).testCases || "[]",
+                    description: (prob as any).description || "",
+                    starterCode: (prob as any).starterCode || "{}",
+                },
             });
 
             // Link to curriculum

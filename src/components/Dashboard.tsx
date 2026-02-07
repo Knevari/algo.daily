@@ -5,7 +5,6 @@ import { NotificationPrompt } from './NotificationPrompt';
 import { StoreModal } from './StoreModal';
 import { Leaderboard } from './Leaderboard';
 import { UserMenu } from './UserMenu';
-import { LeetCodeConnectModal } from './LeetCodeConnect';
 import { CurriculumWidget } from './CurriculumWidget';
 import { BonusProblems } from './BonusProblems';
 import { useState } from 'react';
@@ -46,9 +45,9 @@ interface DashboardProps {
     todaysProblems: Problem[];
     completedProblemIds: string[];
     leaderboard: LeaderboardEntry[];
-    onVerifyProblem: (problemId: string) => Promise<boolean>;
     curriculum?: CurriculumInfo;
     bonusProblems?: Problem[];
+    isDailyGoalComplete?: boolean;
 }
 
 export function Dashboard({
@@ -56,18 +55,13 @@ export function Dashboard({
     todaysProblems,
     completedProblemIds,
     leaderboard,
-    onVerifyProblem,
     curriculum,
-    bonusProblems = []
+    bonusProblems = [],
+    isDailyGoalComplete = false
 }: DashboardProps) {
     const [isStoreOpen, setIsStoreOpen] = useState(false);
-    const [isLeetCodeConnectOpen, setIsLeetCodeConnectOpen] = useState(false);
     const completedCount = completedProblemIds.length;
     const targetCount = 2; // Daily Duo
-    const progressPercent = (completedCount / targetCount) * 100;
-
-    // Show LeetCode connect prompt if not connected
-    const showConnectPrompt = !user.leetcodeUsername;
 
     return (
         <div className="min-h-screen pb-2xl bg-bg-primary text-text-primary selection:bg-accent-primary selection:text-white">
@@ -104,8 +98,6 @@ export function Dashboard({
                     <UserMenu
                         userImage={user.image}
                         userName={user.name}
-                        leetcodeUsername={user.leetcodeUsername}
-                        onConnectLeetCode={() => setIsLeetCodeConnectOpen(true)}
                     />
                 </div>
             </header>
@@ -115,12 +107,6 @@ export function Dashboard({
                 onClose={() => setIsStoreOpen(false)}
                 userXp={user.xp}
                 userFreezes={user.streakFreezes}
-            />
-
-            <LeetCodeConnectModal
-                isOpen={isLeetCodeConnectOpen}
-                onClose={() => setIsLeetCodeConnectOpen(false)}
-                currentUsername={user.leetcodeUsername}
             />
 
             {/* Main Content */}
@@ -137,7 +123,7 @@ export function Dashboard({
                                     <span>./algo-daily.sh</span>
                                 </h2>
                                 <p className="text-text-muted text-sm mt-1 font-mono">
-                                    // Complete 2 problems to maintain streak
+                                    // {isDailyGoalComplete ? "Daily target reached. Come back tomorrow!" : "Complete 2 problems to maintain streak"}
                                 </p>
                             </div>
 
@@ -149,22 +135,47 @@ export function Dashboard({
                             </div>
                         </div>
 
-                        <div className="grid gap-md">
-                            {todaysProblems.map((problem, index) => (
-                                <motion.div
-                                    key={problem.id}
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.1 }}
-                                >
-                                    <ProblemCard
-                                        problem={problem}
-                                        isCompleted={completedProblemIds.includes(problem.id)}
-                                        onVerify={onVerifyProblem}
-                                    />
-                                </motion.div>
-                            ))}
-                        </div>
+                        {isDailyGoalComplete ? (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-bg-tertiary/50 border border-success/30 rounded-md p-xl text-center"
+                            >
+                                <div className="text-4xl mb-md">🎉</div>
+                                <h3 className="text-xl font-bold text-success mb-sm">Day Complete!</h3>
+                                <p className="text-text-secondary max-w-md mx-auto mb-lg">
+                                    You have finished today&apos;s curriculum. To prevent burnout and ensure long-term retention, the next set of problems will unlock tomorrow.
+                                </p>
+                                <p className="text-sm text-text-muted font-mono bg-black/20 inline-block px-md py-sm rounded-sm">
+                                    Next unlock: Tomorrow
+                                </p>
+
+                                <div className="mt-lg pt-lg border-t border-border/50">
+                                    <p className="text-text-primary font-bold mb-xs">Want more practice?</p>
+                                    <p className="text-text-muted text-sm">Try the Extra Credit problems below!</p>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            <div className="grid gap-md">
+                                {todaysProblems.length > 0 ? todaysProblems.map((problem, index) => (
+                                    <motion.div
+                                        key={problem.id}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: index * 0.1 }}
+                                    >
+                                        <ProblemCard
+                                            problem={problem}
+                                            isCompleted={completedProblemIds.includes(problem.id)}
+                                        />
+                                    </motion.div>
+                                )) : (
+                                    <div className="text-center py-xl text-text-muted font-mono border border-dashed border-border rounded-md">
+                                        // No active problems found. Check Curriculum.
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </section>
 
                     {/* Bonus Problems Section */}
@@ -172,7 +183,6 @@ export function Dashboard({
                         <BonusProblems
                             problems={bonusProblems}
                             completedProblemIds={completedProblemIds}
-                            onVerify={onVerifyProblem}
                         />
                     )}
 

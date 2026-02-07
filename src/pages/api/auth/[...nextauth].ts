@@ -4,7 +4,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 
 export const authOptions: NextAuthOptions = {
-    adapter: PrismaAdapter(db),
+    adapter: PrismaAdapter(db) as any,
     providers: [
         GitHubProvider({
             clientId: process.env.GITHUB_CLIENT_ID!,
@@ -20,7 +20,6 @@ export const authOptions: NextAuthOptions = {
                 streak: (user as any).streak,
                 xp: (user as any).xp,
                 gems: (user as any).gems,
-                leetcodeUsername: (user as any).leetcodeUsername,
             },
         }),
     },

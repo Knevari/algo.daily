@@ -7,11 +7,9 @@ import { signOut } from "next-auth/react";
 interface UserMenuProps {
     userImage?: string | null;
     userName?: string | null;
-    leetcodeUsername?: string | null;
-    onConnectLeetCode: () => void;
 }
 
-export function UserMenu({ userImage, userName, leetcodeUsername, onConnectLeetCode }: UserMenuProps) {
+export function UserMenu({ userImage, userName }: UserMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -58,22 +56,6 @@ export function UserMenu({ userImage, userName, leetcodeUsername, onConnectLeetC
                     >
                         <div className="p-md flex flex-col gap-xs border-b border-border/50 pb-sm mb-sm bg-bg-tertiary/30 rounded-t-sm">
                             <span className="font-mono font-bold text-sm text-text-primary">{userName ?? "User"}</span>
-                            {leetcodeUsername ? (
-                                <span className="text-xs text-text-muted font-mono flex items-center gap-1">
-                                    <span className="text-accent-secondary">@</span>
-                                    {leetcodeUsername}
-                                </span>
-                            ) : (
-                                <button
-                                    className="bg-none border-none text-accent-cyan text-xs p-0 cursor-pointer text-left hover:underline font-mono"
-                                    onClick={() => {
-                                        onConnectLeetCode();
-                                        setIsOpen(false);
-                                    }}
-                                >
-                                    + Connect LeetCode
-                                </button>
-                            )}
                         </div>
 
                         <button

@@ -5,53 +5,244 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { CodeEditor } from "@/components/CodeEditor";
 import { runJavaScript, type TestCase, type TestResult } from "@/lib/testRunner";
+import type { GetServerSideProps } from "next";
+import { db } from "@/lib/db";
 
-// Mock Data (In real app, fetch from DB based on slug)
-const PROBLEM_DATA: Record<string, any> = {
-    "two-sum": {
-        id: "1",
-        title: "Two Sum",
-        description: "Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\n\nYou may assume that each input would have **exactly one solution**, and you may not use the same element twice.\n\nYou can return the answer in any order.",
-        starterCode: `function solution(nums, target) {
-    // Write your code here
-    
-    return [];
-}`,
-        testCases: [
-            { input: [[2, 7, 11, 15], 9], expected: [0, 1] },
-            { input: [[3, 2, 4], 6], expected: [1, 2] },
-            { input: [[3, 3], 6], expected: [0, 1] }
-        ]
+interface SolvePageProps {
+    problem: {
+        id: string;
+        title: string;
+        description: string;
+        starterCode: Record<string, string>;
+        testCases: TestCase[];
+        difficulty: string;
+    } | null;
+}
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+    const slug = context.params?.slug as string;
+
+    const problemData = await db.problem.findUnique({
+        where: { slug },
+        select: {
+            id: true,
+            title: true,
+            description: true,
+            starterCode: true,
+            testCases: true,
+            difficulty: true,
+        },
+    });
+
+    if (!problemData) {
+        return {
+            notFound: true,
+        };
     }
+
+    // Parse JSON fields safely
+    let parsedTestCases = [];
+    let parsedStarterCode = {};
+
+    try {
+        parsedTestCases = JSON.parse(problemData.testCases || "[]");
+        parsedStarterCode = JSON.parse(problemData.starterCode || "{}");
+    } catch (e) {
+        console.error("Failed to parse problem data", e);
+    }
+
+    return {
+        props: {
+            problem: {
+                ...problemData,
+                testCases: parsedTestCases,
+                starterCode: parsedStarterCode,
+            },
+        },
+    };
 };
 
-export default function SolvePage() {
+export default function SolvePage({ problem }: SolvePageProps) {
     const router = useRouter();
-    const { slug } = router.query;
 
+    const [language, setLanguage] = useState("javascript");
     const [code, setCode] = useState("");
     const [isRunning, setIsRunning] = useState(false);
     const [results, setResults] = useState<TestResult[]>([]);
     const [activeTab, setActiveTab] = useState<'description' | 'results'>('description');
 
-    const problem = PROBLEM_DATA[slug as string] || PROBLEM_DATA["two-sum"];
+    // If problem is somehow null (though SSR handles 404), return fallback
+    if (!problem) return <div>Problem not found</div>;
 
     useEffect(() => {
-        if (problem) {
-            setCode(problem.starterCode);
-        }
-    }, [problem]);
+        // Set code to language specific starter if current code is empty or matches another starter
+        setCode(problem.starterCode[language] || "");
+    }, [problem, language]);
 
     const handleRun = async () => {
         setIsRunning(true);
         setActiveTab('results');
+        setResults([]);
 
-        // Slight delay to simulate processing and let UI update
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // ... (execution logic)
+        // Slight delay to simulate processing
+        await new Promise(resolve => setTimeout(resolve, 600));
 
-        const testResults = await runJavaScript(code, problem.testCases);
+        let testResults: TestResult[] = [];
+
+        if (language === 'javascript') {
+            testResults = await runJavaScript(code, problem.testCases);
+        } else {
+            // ... (Piston logic)
+            // Real execution via Piston API
+            try {
+                let fullCode = "";
+                let version = "";
+
+                // Dynamically import language runners
+                switch (language) {
+                    case 'python': {
+                        const { pythonRunner } = await import('@/lib/languages/python');
+                        fullCode = pythonRunner(code, problem.testCases);
+                        version = "3.10.0";
+                        break;
+                    }
+                    case 'rust': {
+                        const { rustRunner } = await import('@/lib/languages/rust');
+                        fullCode = rustRunner(code, problem.testCases);
+                        version = "1.68.2";
+                        break;
+                    }
+                    case 'cpp': {
+                        const { cppRunner } = await import('@/lib/languages/cpp');
+                        fullCode = cppRunner(code, problem.testCases);
+                        version = "10.2.0";
+                        break;
+                    }
+                    case 'java': {
+                        const { javaRunner } = await import('@/lib/languages/java');
+                        fullCode = javaRunner(code, problem.testCases);
+                        version = "15.0.2";
+                        break;
+                    }
+                }
+
+                const { executePiston } = await import('@/lib/piston');
+                const pistonLang = language === 'cpp' ? 'c++' : language;
+
+                const response = await executePiston(pistonLang, version, fullCode);
+                // ... (handling response)
+                if (response.run.stderr) {
+                    // Runtime error
+                    console.error("Piston Error:", response.run.stderr);
+                    testResults = problem.testCases.map((test: TestCase) => ({
+                        passed: false,
+                        input: JSON.stringify(test.input),
+                        expected: JSON.stringify(test.expected),
+                        actual: "Execution Error",
+                        logs: [response.run.stderr],
+                        error: "Runtime Error"
+                    }));
+                } else {
+                    // Parse JSON output from stdout
+                    try {
+                        const stdout = response.run.stdout.trim();
+                        // console.log("Piston Stdout:", stdout);
+
+                        const jsonStart = stdout.lastIndexOf('---JSON_START---');
+                        const jsonEnd = stdout.lastIndexOf('---JSON_END---');
+
+                        if (jsonStart !== -1 && jsonEnd !== -1) {
+                            const jsonStr = stdout.substring(jsonStart + '---JSON_START---'.length, jsonEnd).trim();
+                            testResults = JSON.parse(jsonStr);
+                        } else {
+                            throw new Error("Invalid output format");
+                        }
+                    } catch (e) {
+                        console.error("Parse Error:", e, response.run.stdout);
+                        testResults = problem.testCases.map((test: TestCase) => ({
+                            passed: false,
+                            input: JSON.stringify(test.input),
+                            expected: JSON.stringify(test.expected),
+                            actual: "Parse Error",
+                            logs: ["Failed to parse output", response.run.stdout],
+                            error: "Output Parsing Failed"
+                        }));
+                    }
+                }
+
+            } catch (e: any) {
+                console.error("Execution Failed", e);
+                testResults = problem.testCases.map((test: TestCase) => ({
+                    passed: false,
+                    input: JSON.stringify(test.input),
+                    expected: JSON.stringify(test.expected),
+                    actual: "System Error",
+                    logs: [e.message || "Unknown error"],
+                    error: "Execution System Failed"
+                }));
+            }
+        }
         setResults(testResults);
         setIsRunning(false);
+    };
+
+    const handleSubmit = async () => {
+        setIsRunning(true);
+        setActiveTab('results');
+        setResults([]); // Clear previous results or show "Verifying..." state
+
+        try {
+            const res = await fetch("/api/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    problemId: problem.id,
+                    code: code,
+                    language: language
+                }),
+            });
+
+            const data = await res.json();
+
+            if (data.results) {
+                setResults(data.results);
+            }
+
+            if (data.success) {
+                // Trigger success (Sound)
+                const { sounds } = await import('@/lib/sounds');
+                sounds.playSuccess();
+                // Optionally show toast or modal with data.message and data.xpEarned
+            } else {
+                // Handle failure (e.g. show error message)
+                console.error("Verification failed:", data.message);
+                if (!data.results) {
+                    // Add a system error result if no detailed results came back
+                    setResults([{
+                        passed: false,
+                        input: "-",
+                        expected: "-",
+                        actual: "Verification Failed",
+                        logs: [data.message],
+                        error: data.message
+                    }]);
+                }
+            }
+
+        } catch (e: any) {
+            console.error("Failed to submit", e);
+            setResults([{
+                passed: false,
+                input: "-",
+                expected: "-",
+                actual: "Submission Error",
+                logs: [e.message || "Network error"],
+                error: "Network Error"
+            }]);
+        } finally {
+            setIsRunning(false);
+        }
     };
 
     return (
@@ -193,10 +384,12 @@ export default function SolvePage() {
                 <div className="w-1/2 bg-[#05050A] p-4">
                     <CodeEditor
                         initialCode={code}
-                        language="javascript"
+                        language={language}
                         onChange={(value) => setCode(value || "")}
                         onRun={handleRun}
+                        onSubmit={handleSubmit}
                         isRunning={isRunning}
+                        onChangeLanguage={setLanguage}
                     />
                 </div>
             </main>

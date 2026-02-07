@@ -6,10 +6,12 @@ interface CodeEditorProps {
     language: string;
     onChange: (value: string | undefined) => void;
     onRun: () => void;
+    onSubmit: () => void;
     isRunning: boolean;
+    onChangeLanguage?: (lang: string) => void;
 }
 
-export function CodeEditor({ initialCode, language, onChange, onRun, isRunning }: CodeEditorProps) {
+export function CodeEditor({ initialCode, language, onChange, onRun, onSubmit, isRunning, onChangeLanguage }: CodeEditorProps) {
     const editorRef = useRef<any>(null);
 
     function handleEditorDidMount(editor: any, monaco: any) {
@@ -50,15 +52,25 @@ export function CodeEditor({ initialCode, language, onChange, onRun, isRunning }
                     <span className="ml-2 text-xs font-mono text-text-muted">editor.tsx</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-accent-secondary opacity-50">{language.toUpperCase()}</span>
+                    <select
+                        value={language}
+                        onChange={(e) => onChangeLanguage?.(e.target.value)}
+                        className="bg-transparent text-xs font-mono text-accent-secondary border border-border rounded px-2 py-1 outline-none hover:border-accent-secondary transition-colors cursor-pointer"
+                    >
+                        <option value="javascript">JAVASCRIPT</option>
+                        <option value="python">PYTHON</option>
+                        <option value="cpp">C++</option>
+                        <option value="java">JAVA</option>
+                        <option value="rust">RUST</option>
+                    </select>
                 </div>
             </div>
 
             <div className="pt-10 h-full">
                 <Editor
                     height="100%"
-                    defaultLanguage={language}
-                    defaultValue={initialCode}
+                    language={language}
+                    value={initialCode}
                     onChange={onChange}
                     onMount={handleEditorDidMount}
                     options={{
@@ -73,15 +85,16 @@ export function CodeEditor({ initialCode, language, onChange, onRun, isRunning }
                         cursorSmoothCaretAnimation: "on",
                         renderLineHighlight: "all",
                     }}
+                    path={`file.${language}`} // Force new model on language change
                 />
             </div>
 
-            {/* Run Button Overlay */}
-            <div className="absolute bottom-4 right-4 z-20">
+            {/* Run & Submit Buttons Overlay */}
+            <div className="absolute bottom-4 right-4 z-20 flex gap-2">
                 <button
                     onClick={onRun}
                     disabled={isRunning}
-                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white font-mono font-bold text-sm rounded-md shadow-lg shadow-accent-primary/20 hover:shadow-accent-primary/40 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-4 py-2 bg-transparent border border-accent-primary text-accent-primary font-mono font-bold text-sm rounded-md hover:bg-accent-primary/10 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isRunning ? (
                         <>
@@ -92,6 +105,23 @@ export function CodeEditor({ initialCode, language, onChange, onRun, isRunning }
                         <>
                             <span>▶</span>
                             RUN_CODE
+                        </>
+                    )}
+                </button>
+                <button
+                    onClick={onSubmit}
+                    disabled={isRunning}
+                    className="flex items-center gap-2 px-4 py-2 bg-accent-green text-bg-primary font-mono font-bold text-sm rounded-md shadow-lg shadow-accent-green/20 hover:shadow-accent-green/40 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isRunning ? (
+                        <>
+                            <span className="animate-spin">⟳</span>
+                            SUBMITTING...
+                        </>
+                    ) : (
+                        <>
+                            <span>✓</span>
+                            SUBMIT
                         </>
                     )}
                 </button>

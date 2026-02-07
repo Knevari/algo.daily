@@ -14,20 +14,9 @@ interface Problem {
 interface ProblemCardProps {
     problem: Problem;
     isCompleted: boolean;
-    onVerify: (problemId: string) => Promise<boolean>;
 }
 
-export function ProblemCard({ problem, isCompleted, onVerify }: ProblemCardProps) {
-    const [isVerifying, setIsVerifying] = useState(false);
-
-    const handleVerify = async () => {
-        setIsVerifying(true);
-        try {
-            await onVerify(problem.id);
-        } finally {
-            setIsVerifying(false);
-        }
-    };
+export function ProblemCard({ problem, isCompleted }: ProblemCardProps) {
 
     return (
         <div className={`relative p-lg group transition-all duration-300 bg-bg-card backdrop-blur-md border rounded-md hover:scale-[1.01] ${isCompleted
@@ -58,9 +47,7 @@ export function ProblemCard({ problem, isCompleted, onVerify }: ProblemCardProps
                 <div className="flex justify-between items-start gap-md mb-lg">
                     <h3 className="text-lg font-bold font-mono">
                         <Link
-                            href={problem.externalUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            href={`/solve/${problem.slug}`}
                             className="text-text-primary transition-colors hover:text-accent-primary group-hover:text-accent-primary"
                         >
                             {problem.title}
@@ -72,33 +59,13 @@ export function ProblemCard({ problem, isCompleted, onVerify }: ProblemCardProps
                 <div className="flex gap-md flex-wrap items-center">
                     <Link
                         href={`/solve/${problem.slug}`}
-                        className="px-4 py-1.5 rounded-sm font-mono text-sm border border-border bg-bg-tertiary text-text-secondary hover:text-text-primary hover:border-text-primary transition-colors"
-                    >
-                        ./solve
-                    </Link>
-
-                    <button
-                        className={`px-4 py-1.5 rounded-sm font-mono text-sm font-bold transition-all ${isCompleted
+                        className={`flex-1 text-center font-mono text-sm font-bold py-2 rounded-sm transition-all ${isCompleted
                             ? 'bg-accent-green/20 text-accent-green border border-accent-green/50 cursor-default'
                             : 'bg-accent-primary text-bg-primary hover:bg-accent-primary/90 hover:shadow-glow'
                             }`}
-                        onClick={handleVerify}
-                        disabled={isCompleted || isVerifying}
                     >
-                        {isVerifying ? (
-                            <span className="inline-block animate-spin">⟳</span>
-                        ) : isCompleted ? (
-                            'COMPLETED'
-                        ) : (
-                            'VERIFY_submission()'
-                        )}
-                    </button>
-
-                    {problem.externalUrl.includes('leetcode.com') && (
-                        <span className="text-xs text-text-muted ml-auto font-mono opacity-50">
-                            [LeetCode]
-                        </span>
-                    )}
+                        {isCompleted ? 'COMPLETED' : 'SOLVE_PROBLEM()'}
+                    </Link>
                 </div>
             </div>
 

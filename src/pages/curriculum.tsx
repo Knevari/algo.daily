@@ -175,11 +175,9 @@ export default function CurriculumPage({ weeks, currentWeek, isAuthenticated }: 
                                                                 <h4 className="text-sm font-bold text-text-muted uppercase tracking-wider mb-md">Day {day}</h4>
                                                                 <div className="flex flex-col gap-sm">
                                                                     {dayProblems.map(problem => (
-                                                                        <a
+                                                                        <Link
                                                                             key={problem.id}
-                                                                            href={problem.externalUrl}
-                                                                            target="_blank"
-                                                                            rel="noopener noreferrer"
+                                                                            href={`/solve/${problem.slug}`}
                                                                             className={`flex items-center gap-sm p-sm rounded-md transition-all hover:bg-white/5 group ${problem.isCompleted ? 'opacity-60 hover:opacity-100' : ""}`}
                                                                         >
                                                                             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs border ${problem.isCompleted ? 'bg-success text-white border-success' : 'border-text-muted text-transparent'}`}>
@@ -191,7 +189,7 @@ export default function CurriculumPage({ weeks, currentWeek, isAuthenticated }: 
                                                                             <span className={`badge ${problem.difficulty === 'Easy' ? 'badge-easy' : problem.difficulty === 'Medium' ? 'badge-medium' : 'badge-hard'} text-[10px] px-1.5 py-0.5`}>
                                                                                 {problem.difficulty}
                                                                             </span>
-                                                                        </a>
+                                                                        </Link>
                                                                     ))}
                                                                 </div>
                                                             </div>
