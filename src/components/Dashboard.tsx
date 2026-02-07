@@ -134,7 +134,7 @@ export function Dashboard({
                             <div>
                                 <h2 className="text-xl font-mono font-bold text-accent-green flex items-center gap-2">
                                     <span className="text-text-muted">$</span>
-                                    <span>./daily-duo.sh</span>
+                                    <span>./algo-daily.sh</span>
                                 </h2>
                                 <p className="text-text-muted text-sm mt-1 font-mono">
                                     // Complete 2 problems to maintain streak

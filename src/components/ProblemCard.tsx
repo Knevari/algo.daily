@@ -71,9 +71,7 @@ export function ProblemCard({ problem, isCompleted, onVerify }: ProblemCardProps
 
                 <div className="flex gap-md flex-wrap items-center">
                     <Link
-                        href={problem.externalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={`/solve/${problem.slug}`}
                         className="px-4 py-1.5 rounded-sm font-mono text-sm border border-border bg-bg-tertiary text-text-secondary hover:text-text-primary hover:border-text-primary transition-colors"
                     >
                         ./solve

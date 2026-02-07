@@ -300,19 +300,29 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     acc + w.problems.filter(p => completedIds.includes(p.problemId)).length, 0);
   const totalProgress = totalProblems > 0 ? (totalCompleted / totalProblems) * 100 : 0;
 
-  // Get bonus problems (problems from future weeks for extra XP)
-  const bonusWeeks = allWeeks.filter(w => w.weekNumber > currentWeekNum).slice(0, 2);
+  // Get bonus problems (fetch a larger set of uncompleted problems for "Extra Credit")
+  // Filter by the current week's category to be contextually relevant
+  const currentCategory = currentWeekData?.category || 'Arrays & Hashing';
+
   const bonusProblemRecords = await db.problem.findMany({
     where: {
-      curriculumProblems: {
-        some: {
-          weekId: { in: bonusWeeks.map(w => w.id) },
-        },
-      },
       id: { notIn: completedIds },
+      category: currentCategory, // Filter by current week's category
     },
-    take: 4,
+    take: 20,
+    orderBy: { difficulty: 'asc' }, // Show easier ones first for "Extra Credit" flow, or 'desc' if they want challenge? User didn't specify, but usually extra credit implies "more work". Let's stick to a mix or just let them be. 'desc' was previous. Let's try 'asc' to encourage solving. Actually user said "show dynamic programming problems if DP week".
   });
+
+  // Fallback: If no problems found in category (e.g. they finished them all), fetch any uncompleted
+  if (bonusProblemRecords.length === 0) {
+    const fallbackProblems = await db.problem.findMany({
+      where: {
+        id: { notIn: completedIds },
+      },
+      take: 20,
+    });
+    bonusProblemRecords.push(...fallbackProblems);
+  }
 
   const bonusProblems = bonusProblemRecords.map(p => ({
     id: p.id,
