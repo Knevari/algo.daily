@@ -6,25 +6,14 @@ import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Dashboard } from "@/components/Dashboard";
 
-// Mock data for demo - will be replaced with real API calls
-const mockProblems = [
-  {
-    id: "1",
-    title: "Two Sum",
-    slug: "two-sum",
-    difficulty: "Easy" as const,
-    category: "Arrays",
-    externalUrl: "https://leetcode.com/problems/two-sum/",
-  },
-  {
-    id: "2",
-    title: "Group Anagrams",
-    slug: "group-anagrams",
-    difficulty: "Medium" as const,
-    category: "Hash Table",
-    externalUrl: "https://leetcode.com/problems/group-anagrams/",
-  },
-];
+// Next.js & Auth
+import type { GetServerSideProps } from "next";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "./api/auth/[...nextauth]";
+
+// Hexagonal Architecture
+import { Registry } from "@/infrastructure/Registry";
+import { GetDashboardUseCase } from "@/core/application/use-cases/GetDashboardUseCase";
 
 function TypingText({ text, delay = 0 }: { text: string, delay?: number }) {
   const [displayedText, setDisplayedText] = useState("");
@@ -129,36 +118,12 @@ function LandingPage() {
   );
 }
 
-import type { GetServerSideProps } from "next";
-import { getLeaderboard, type LeaderboardEntry } from "@/actions/leaderboard";
-import { db } from "@/lib/db";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "./api/auth/[...nextauth]";
-// verifyProblem import removed
-import { sounds } from "@/lib/sounds";
-
-interface CurriculumInfo {
-  currentWeek: number;
-  weekTitle: string;
-  weekProgress: number;
-  totalProgress: number;
-}
-
-interface Problem {
-  id: string;
-  title: string;
-  slug: string;
-  difficulty: "Easy" | "Medium" | "Hard";
-  category: string;
-  externalUrl: string;
-}
-
 interface HomeProps {
-  leaderboard: LeaderboardEntry[];
+  leaderboard: any[];
   user?: any;
-  curriculum?: CurriculumInfo;
-  bonusProblems?: Problem[];
-  todaysProblems?: Problem[];
+  curriculum?: any;
+  bonusProblems?: any[];
+  todaysProblems?: any[];
   completedProblemIds?: string[];
   isDailyGoalComplete?: boolean;
 }
@@ -171,7 +136,6 @@ export default function Home({ leaderboard, user: initialUser, curriculum, bonus
   useEffect(() => {
     const { mock_success, plan } = router.query;
     if (mock_success && plan && session?.user?.id) {
-      // Simple client-side update for local testing (in production this is done via Webhook)
       fetch("/api/user/update-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -183,8 +147,6 @@ export default function Home({ leaderboard, user: initialUser, curriculum, bonus
     }
   }, [router.query, session, router]);
 
-
-  // Use session user merged with db user if available
   const user = initialUser ? {
     ...initialUser,
     image: session?.user?.image ?? initialUser.image,
@@ -194,7 +156,6 @@ export default function Home({ leaderboard, user: initialUser, curriculum, bonus
     image: session?.user?.image,
     streak: 0,
     maxStreak: 0,
-    streakFreezes: 0,
     xp: 0,
     gems: 0,
     lastStudiedAt: null,
@@ -253,186 +214,36 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     };
   }
 
-  const [leaderboard, user, curriculumProgress, allWeeks, completedProblemIds] = await Promise.all([
-    getLeaderboard(),
-    db.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        id: true,
-        name: true,
-        image: true,
-        streak: true,
-        maxStreak: true,
-        streakFreezes: true,
-        xp: true,
-        gems: true,
-        lastStudiedAt: true,
-        leetcodeUsername: true,
-        plan: true,
-      },
-    }),
-    db.userCurriculumProgress.findUnique({
-      where: { userId: session.user.id },
-    }),
-    db.curriculumWeek.findMany({
-      include: {
-        problems: {
-          include: { problem: true }
-        }
-      },
-      orderBy: { weekNumber: "asc" },
-    }),
-    db.userProblem.findMany({
-      where: { userId: session.user.id },
-      select: { problemId: true },
-    }),
-  ]);
+  try {
+    const userRepository = Registry.getUserRepository();
+    const problemRepository = Registry.getProblemRepository();
+    const curriculumRepository = Registry.getCurriculumRepository();
 
-  // Calculate curriculum info
-  const currentWeekNum = curriculumProgress?.currentWeek ?? 1;
-  const currentWeekData = allWeeks.find(w => w.weekNumber === currentWeekNum);
-  const completedIds = completedProblemIds.map(p => p.problemId);
+    const useCase = new GetDashboardUseCase(
+      userRepository,
+      problemRepository,
+      curriculumRepository
+    );
 
-  // Calculate "Today's Problems" (Daily Duo)
-  // Logic: Find the first day in the current week that isn't fully completed.
-  const currentWeekProblems = currentWeekData ? currentWeekData.problems : [];
-  let targetDay = 1;
-  const daysInWeek = 7;
-  let isDailyGoalComplete = false;
+    const result = await useCase.execute({ userId: session.user.id });
 
-  // We need to fetch completion times to enforce the daily cap
-  // Fetch completed user problems with timestamps
-  const completedUserProblems = await db.userProblem.findMany({
-    where: { userId: session.user.id },
-    select: { problemId: true, completedAt: true },
-  });
-
-  const completedMap = new Map(completedUserProblems.map(p => [p.problemId, p.completedAt]));
-
-  for (let d = 1; d <= daysInWeek; d++) {
-    const daysProblems = currentWeekProblems.filter(p => p.dayNumber === d);
-    if (daysProblems.length === 0) continue;
-
-    // Check if all problems for this day are completed
-    const allCompleted = daysProblems.every(p => completedIds.includes(p.problemId));
-
-    if (!allCompleted) {
-      targetDay = d;
-
-      // Linear Progression / Daily Cap Logic:
-      // If we are looking at a day > 1, strictly check if the PREVIOUS day was completed TODAY.
-      // If previous day was completed TODAY, then the user has reached their daily limit (unless they are catching up multiple days in the past, but the requirement implies a strict "one day per day" once caught up).
-      // Actually, a simpler interpretation of "linear program, only extra credits available" is:
-      // If I finish Day X *today*, I cannot start Day X+1 until tomorrow.
-
-      if (d > 1) {
-        // Check previous day completion time
-        const prevDayProblems = currentWeekProblems.filter(p => p.dayNumber === d - 1);
-
-        // When was the LAST problem of the previous day completed?
-        let lastCompletionTime = 0;
-        prevDayProblems.forEach(p => {
-          const t = completedMap.get(p.problemId);
-          if (t && t.getTime() > lastCompletionTime) {
-            lastCompletionTime = t.getTime();
-          }
-        });
-
-        if (lastCompletionTime > 0) {
-          const completionDate = new Date(lastCompletionTime);
-          const today = new Date();
-
-          // Check if same day (UTC or local? Server is UTC usually, let's stick to simple date comparison)
-          if (completionDate.toDateString() === today.toDateString()) {
-            // Previous day was finished today. Cap reached.
-            isDailyGoalComplete = true;
-          }
-        }
+    return {
+      props: {
+        ...result,
+        user: result.user ? {
+          ...result.user,
+          lastStudiedAt: result.user.lastStudiedAt ? new Date(result.user.lastStudiedAt).toISOString() : null,
+        } : null
       }
-
-      break;
-    }
-    // If it's the last day and it's completed, we still show the last day (or empty?)
-    if (d === daysInWeek) targetDay = daysInWeek;
+    };
+  } catch (error) {
+    console.error("Dashboard SSR error:", error);
+    return {
+      props: {
+        leaderboard: [],
+        error: "Failed to load dashboard data"
+      }
+    };
   }
-
-  // If daily goal is complete, we DO NOT return today's problems.
-  const todaysProblemRecords = isDailyGoalComplete
-    ? []
-    : currentWeekProblems.filter(p => p.dayNumber === targetDay);
-
-  const weekProgress = currentWeekData
-    ? (currentWeekData.problems.filter(p => completedIds.includes(p.problemId)).length / currentWeekData.problems.length) * 100
-    : 0;
-
-  const totalProblems = allWeeks.reduce((acc, w) => acc + w.problems.length, 0);
-  const totalCompleted = allWeeks.reduce((acc, w) =>
-    acc + w.problems.filter(p => completedIds.includes(p.problemId)).length, 0);
-  const totalProgress = totalProblems > 0 ? (totalCompleted / totalProblems) * 100 : 0;
-
-  // Get bonus problems (fetch a larger set of uncompleted problems for "Extra Credit")
-  // Filter by the current week's category to be contextually relevant
-  // Get bonus problems (fetch a larger set of uncompleted problems for "Extra Credit")
-  // Filter by the current week's category to be contextually relevant
-  const currentCategory = currentWeekData?.category || 'Arrays & Hashing';
-
-  const bonusProblemRecords = await db.problem.findMany({
-    where: {
-      id: { notIn: completedIds },
-      category: currentCategory, // Filter by current week's category
-    },
-    take: 20,
-    orderBy: { difficulty: 'asc' },
-  });
-
-  // Fallback: If no problems found in category (e.g. they finished them all), fetch any uncompleted
-  if (bonusProblemRecords.length === 0) {
-    const fallbackProblems = await db.problem.findMany({
-      where: {
-        id: { notIn: completedIds },
-      },
-      take: 20,
-    });
-    bonusProblemRecords.push(...fallbackProblems);
-  }
-
-  const bonusProblems = bonusProblemRecords.map(p => ({
-    id: p.id,
-    title: p.title,
-    slug: p.slug,
-    difficulty: p.difficulty as "Easy" | "Medium" | "Hard",
-    category: p.category,
-    externalUrl: p.externalUrl,
-  }));
-
-  // Convert Date objects to strings for serialization
-  const serializedUser = user ? {
-    ...user,
-    lastStudiedAt: user.lastStudiedAt?.toISOString() ?? null,
-    leetcodeUsername: user.leetcodeUsername ?? null,
-  } : null;
-
-  return {
-    props: {
-      leaderboard,
-      user: serializedUser,
-      curriculum: {
-        currentWeek: currentWeekNum,
-        weekTitle: currentWeekData?.title ?? "Arrays & Hashing",
-        weekProgress: Math.round(weekProgress),
-        totalProgress: Math.round(totalProgress),
-      },
-      todaysProblems: todaysProblemRecords.map(cp => ({
-        id: (cp as any).problem.id,
-        title: (cp as any).problem.title,
-        slug: (cp as any).problem.slug,
-        difficulty: (cp as any).problem.difficulty,
-        category: (cp as any).problem.category,
-        externalUrl: (cp as any).problem.externalUrl,
-      })),
-      completedProblemIds: completedIds, // Pass real completed IDs
-      bonusProblems,
-      isDailyGoalComplete,
-    },
-  };
 };
+

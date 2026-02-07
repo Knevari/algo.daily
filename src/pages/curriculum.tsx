@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { GetServerSideProps } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./api/auth/[...nextauth]";
-import { db } from "@/lib/db";
+import { Registry } from "@/infrastructure/Registry";
+import { GetCurriculumUseCase } from "@/core/application/use-cases/GetCurriculumUseCase";
 import Link from "next/link";
 
 interface CurriculumProblem {
@@ -322,76 +323,40 @@ export default function CurriculumPage({ weeks, currentWeek, isAuthenticated, us
 }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
-    const { mumble } = await import("@/lib/obfuscation");
     const session = await getServerSession(context.req, context.res, authOptions);
     const userId = session?.user?.id;
 
-    const user = userId ? await db.user.findUnique({
-        where: { id: userId },
-        select: { plan: true }
-    }) : null;
+    try {
+        const userRepository = Registry.getUserRepository();
+        const problemRepository = Registry.getProblemRepository();
+        const curriculumRepository = Registry.getCurriculumRepository();
 
-    const userPlan = user?.plan ?? "FREE";
-    const isPro = userPlan === "PRO" || userPlan === "LIFETIME";
+        const useCase = new GetCurriculumUseCase(
+            curriculumRepository,
+            problemRepository,
+            userRepository
+        );
 
-    // Fetch all weeks with problems
-    const weeks = await db.curriculumWeek.findMany({
-        orderBy: { weekNumber: "asc" },
-        include: {
-            problems: {
-                include: { problem: true },
-                orderBy: [{ dayNumber: "asc" }, { order: "asc" }],
-            },
-        },
-    });
-
-    // Get user's completed problems
-    const completedProblemIds = userId
-        ? (await db.userProblem.findMany({
-            where: { userId },
-            select: { problemId: true },
-        })).map(p => p.problemId)
-        : [];
-
-    // Get user's current week
-    const progress = userId
-        ? await db.userCurriculumProgress.findUnique({
-            where: { userId },
-        })
-        : null;
-
-    const formattedWeeks = weeks.map(week => {
-        const isLocked = week.weekNumber > 1 && !isPro;
+        const result = await useCase.execute({ userId });
 
         return {
-            id: week.id,
-            weekNumber: week.weekNumber,
-            title: week.title,
-            description: isLocked ? mumble(week.description) : week.description,
-            category: week.category,
-            totalProblems: week.problems.length,
-            completedProblems: week.problems.filter(p =>
-                completedProblemIds.includes(p.problemId)
-            ).length,
-            problems: week.problems.map(cp => ({
-                id: cp.id,
-                title: cp.problem.title,
-                slug: cp.problem.slug,
-                difficulty: cp.problem.difficulty,
-                dayNumber: cp.dayNumber,
-                order: cp.order,
-                isCompleted: completedProblemIds.includes(cp.problemId),
-                externalUrl: cp.problem.externalUrl,
-            })),
+            props: {
+                weeks: result.weeks,
+                currentWeek: result.currentWeek,
+                isAuthenticated: result.isAuthenticated,
+                userPlan: result.userPlan,
+            },
         };
-    });
-
-    return {
-        props: {
-            weeks: formattedWeeks,
-            currentWeek: progress?.currentWeek ?? 1,
-            isAuthenticated: !!userId,
-            userPlan: userPlan,
-        },
-    };
+    } catch (error) {
+        console.error("Curriculum SSR error:", error);
+        return {
+            props: {
+                weeks: [],
+                currentWeek: 1,
+                isAuthenticated: !!userId,
+                userPlan: "FREE",
+                error: "Failed to load curriculum"
+            }
+        };
+    }
 };

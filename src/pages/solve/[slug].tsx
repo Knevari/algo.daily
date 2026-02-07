@@ -7,8 +7,10 @@ import { CodeEditor } from "@/components/CodeEditor";
 import { UserMenu } from "@/components/UserMenu";
 import { runJavaScript, type TestCase, type TestResult } from "@/lib/testRunner";
 import type { GetServerSideProps } from "next";
-import { db } from "@/lib/db";
+// import { db } from "@/lib/db"; // Removed
 import { getServerSession } from "next-auth/next";
+import { Registry } from "@/infrastructure/Registry";
+import { GetProblemUseCase } from "@/core/application/use-cases/GetProblemUseCase";
 import { authOptions } from "../api/auth/[...nextauth]";
 
 interface SolvePageProps {
@@ -30,78 +32,51 @@ interface SolvePageProps {
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
     const slug = context.params?.slug as string;
-
-    const [problemData, user] = await Promise.all([
-        db.problem.findUnique({
-            where: { slug },
-            select: {
-                id: true,
-                title: true,
-                description: true,
-                starterCode: true,
-                testCases: true,
-                difficulty: true,
-            },
-        }),
-        context.req && context.res ? getServerSession(context.req, context.res, authOptions).then((session: any) =>
-            session?.user?.id ? db.user.findUnique({
-                where: { id: session.user.id },
-                select: { plan: true, name: true, image: true }
-            }) : null
-        ) : null
-    ]);
-
-    if (!problemData) {
-        return {
-            notFound: true,
-        };
-    }
-
-    const userPlan = user?.plan ?? "FREE";
-    const isPro = userPlan === "PRO" || userPlan === "LIFETIME";
-
-    // Determine if this problem belongs to a locked week (Week > 1)
-    const curriculumProblem = await db.curriculumProblem.findFirst({
-        where: { problemId: problemData.id },
-        include: { week: true }
-    });
-
-    const isLocked = curriculumProblem && curriculumProblem.week.weekNumber > 1 && !isPro;
-
-    // Parse JSON fields safely
-    let parsedTestCases = [];
-    let parsedStarterCode = {};
+    const session = await getServerSession(context.req, context.res, authOptions);
+    const userId = session?.user?.id;
 
     try {
-        parsedTestCases = JSON.parse(problemData.testCases || "[]");
-        parsedStarterCode = JSON.parse(problemData.starterCode || "{}");
-    } catch (e) {
-        console.error("Failed to parse problem data", e);
-    }
+        const userRepository = Registry.getUserRepository();
+        const problemRepository = Registry.getProblemRepository();
+        const curriculumRepository = Registry.getCurriculumRepository();
 
-    if (isLocked) {
-        const { mumble } = await import("@/lib/obfuscation");
-        problemData.description = mumble(problemData.description);
-        // Also clear starters and tests to prevent any logic leaks
-        parsedStarterCode = {};
-        parsedTestCases = [];
-    }
+        const useCase = new GetProblemUseCase(
+            userRepository,
+            problemRepository,
+            curriculumRepository
+        );
 
-    return {
-        props: {
-            problem: {
-                ...problemData,
-                testCases: parsedTestCases,
-                starterCode: parsedStarterCode,
-            },
-            isLocked: !!isLocked,
-            user: user ? {
-                name: user.name,
-                image: user.image,
-                plan: user.plan,
-            } : null
-        },
-    };
+        const result = await useCase.execute({ userId, slug });
+
+        if (!result.problem) {
+            return {
+                notFound: true,
+            };
+        }
+
+        if (result.redirect) {
+            return {
+                redirect: {
+                    destination: result.redirect,
+                    permanent: false,
+                },
+            };
+        }
+
+        return {
+            props: {
+                problem: result.problem,
+                isLocked: result.isLocked,
+                user: result.user
+            }
+        };
+
+    } catch (error) {
+        console.error("Problem SSR error:", error);
+        return {
+            notFound: true
+        };
+    }
 };
 
 export default function SolvePage({ problem, isLocked, user }: SolvePageProps) {

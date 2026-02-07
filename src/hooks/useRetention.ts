@@ -57,7 +57,7 @@ export function useRetention(isDailyGoalComplete: boolean, status: string) {
                         badge: "/favicon.ico",
                         tag: "streak-reminder",
                         renotify: true
-                    });
+                    } as any);
                 });
             }
         };

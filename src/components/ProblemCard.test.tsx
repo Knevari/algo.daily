@@ -18,7 +18,6 @@ describe('ProblemCard', () => {
             <ProblemCard
                 problem={mockProblem}
                 isCompleted={false}
-                onVerify={jest.fn()}
             />
         );
 
@@ -32,28 +31,11 @@ describe('ProblemCard', () => {
             <ProblemCard
                 problem={mockProblem}
                 isCompleted={true}
-                onVerify={jest.fn()}
             />
         );
 
         expect(screen.getByText('COMPLETED')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /COMPLETED/i })).toBeDisabled();
-    });
-
-    it('calls onVerify when verify button is clicked', async () => {
-        const handleVerify = jest.fn().mockResolvedValue(true);
-        render(
-            <ProblemCard
-                problem={mockProblem}
-                isCompleted={false}
-                onVerify={handleVerify}
-            />
-        );
-
-        fireEvent.click(screen.getByText('VERIFY_submission()'));
-
-        expect(handleVerify).toHaveBeenCalledWith('1');
-        // Wait for state update
-        await screen.findByText('VERIFY_submission()');
+        // Link doesn't have disabled attribute like button, but we can check class or content
+        expect(screen.getByText('COMPLETED')).toHaveClass('cursor-default');
     });
 });

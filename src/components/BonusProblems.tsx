@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ProblemCard } from './ProblemCard';
+
 
 interface Problem {
     id: string;
