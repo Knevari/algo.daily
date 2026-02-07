@@ -70,6 +70,8 @@ export default function SolvePage({ problem }: SolvePageProps) {
     const [isRunning, setIsRunning] = useState(false);
     const [results, setResults] = useState<TestResult[]>([]);
     const [activeTab, setActiveTab] = useState<'description' | 'results'>('description');
+    const [hintLevel, setHintLevel] = useState(0);
+    const [hints, setHints] = useState<string[]>([]);
 
     // If problem is somehow null (though SSR handles 404), return fallback
     if (!problem) return <div>Problem not found</div>;
@@ -245,6 +247,35 @@ export default function SolvePage({ problem }: SolvePageProps) {
         }
     };
 
+    const handleGetHint = async () => {
+        try {
+            const res = await fetch("/api/hint", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    slug: router.query.slug,
+                    hintLevel: hintLevel,
+                    code: code,
+                    language: language
+                }),
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                setHints(prev => [...prev, data.hint]);
+                setHintLevel(data.hintLevel);
+                setActiveTab('results');
+
+                // Play a subtle sound
+                const { sounds } = await import('@/lib/sounds');
+                sounds.playLevelUp();
+            }
+        } catch (e) {
+            console.error("Failed to fetch hint", e);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-bg-primary text-text-primary flex flex-col">
             <Head>
@@ -319,9 +350,28 @@ export default function SolvePage({ problem }: SolvePageProps) {
                             </div>
                         ) : (
                             <div className="space-y-4">
+                                {hints.length > 0 && (
+                                    <div className="space-y-2 mb-6">
+                                        {hints.map((hint, i) => (
+                                            <motion.div
+                                                key={`hint-${i}`}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                className="bg-accent-secondary/10 border border-accent-secondary/30 rounded-md p-4 font-mono text-xs text-accent-secondary"
+                                            >
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span>🦉</span>
+                                                    <span className="font-bold uppercase tracking-widest text-[10px]">Conceptual Hint #{i + 1}</span>
+                                                </div>
+                                                <p className="leading-relaxed whitespace-pre-wrap">{hint}</p>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                )}
+
                                 {results.length === 0 ? (
                                     <div className="text-center py-10 text-text-muted font-mono">
-                                        // Run code to see results...
+                                        {hints.length === 0 ? "// Run code to see results..." : "// Use the hints above to guide your solution!"}
                                     </div>
                                 ) : (
                                     results.map((res, i) => (
@@ -388,6 +438,7 @@ export default function SolvePage({ problem }: SolvePageProps) {
                         onChange={(value) => setCode(value || "")}
                         onRun={handleRun}
                         onSubmit={handleSubmit}
+                        onGetHint={handleGetHint}
                         isRunning={isRunning}
                         onChangeLanguage={setLanguage}
                     />

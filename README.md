@@ -9,8 +9,10 @@ AlgoDaily is a gamified coding interview preparation platform. It focuses on con
 ## ✨ Features
 
 - **Daily Duo**: A curated pair of problems every day.
+- **Linear Progression**: Strict daily limits to prevent burnout and ensure long-term retention.
 - **Streak System**: Gamified consistency tracking.
-- **Live Code Compiler**: Integrated Monaco Editor.
+- **Live Code Compiler**: Integrated Monaco Editor with persistent **Vim Mode**.
+- **AI Code Hints**: Conceptual nudges to help solve tough problems without spoiling solutions (O(1) hints).
 - **Leaderboards**: Compete with other users globally.
 - **Curriculum Track**: Guided path through data structures and algorithms.
 
@@ -93,6 +95,7 @@ The UI is built on a "Deep Space" theme:
 - **Primary Accent**: `#D946EF` (Neon Fuchsia)
 - **Secondary Accent**: `#06B6D4` (Cyan)
 - **Typography**: `Inter` (UI) + `JetBrains Mono` (Code/Data)
+
 
 
 ---

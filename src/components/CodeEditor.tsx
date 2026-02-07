@@ -1,5 +1,5 @@
 import Editor from "@monaco-editor/react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 interface CodeEditorProps {
     initialCode: string;
@@ -9,10 +9,50 @@ interface CodeEditorProps {
     onSubmit: () => void;
     isRunning: boolean;
     onChangeLanguage?: (lang: string) => void;
+    onGetHint?: () => void;
 }
 
-export function CodeEditor({ initialCode, language, onChange, onRun, onSubmit, isRunning, onChangeLanguage }: CodeEditorProps) {
+export function CodeEditor({ initialCode, language, onChange, onRun, onSubmit, isRunning, onChangeLanguage, onGetHint }: CodeEditorProps) {
     const editorRef = useRef<any>(null);
+    const vimModeRef = useRef<any>(null);
+    const [isVimEnabled, setIsVimEnabled] = useState(false);
+
+    // Load Vim preference on mount
+    useEffect(() => {
+        const savedVim = localStorage.getItem("algodaily_vim_enabled");
+        if (savedVim === "true") {
+            setIsVimEnabled(true);
+        }
+    }, []);
+
+    // Handle Vim Mode Toggle
+    useEffect(() => {
+        if (!editorRef.current) return;
+
+        const toggleVim = async () => {
+            if (isVimEnabled) {
+                const { initVimMode } = await import("monaco-vim");
+                // The vim status bar can be added if needed, but for now we'll keep it clean
+                // We create a dummy element for the status bar to avoid errors or floating text
+                const statusNode = document.getElementById('vim-status-bar');
+                vimModeRef.current = initVimMode(editorRef.current, statusNode);
+            } else {
+                if (vimModeRef.current) {
+                    vimModeRef.current.dispose();
+                    vimModeRef.current = null;
+                }
+            }
+        };
+
+        toggleVim();
+        localStorage.setItem("algodaily_vim_enabled", String(isVimEnabled));
+
+        return () => {
+            if (vimModeRef.current) {
+                vimModeRef.current.dispose();
+            }
+        };
+    }, [isVimEnabled]);
 
     function handleEditorDidMount(editor: any, monaco: any) {
         editorRef.current = editor;
@@ -40,18 +80,47 @@ export function CodeEditor({ initialCode, language, onChange, onRun, onSubmit, i
         });
 
         monaco.editor.setTheme('creative-coder');
+
+        // Re-trigger Vim initialization if it was enabled
+        if (isVimEnabled) {
+            import("monaco-vim").then(({ initVimMode }) => {
+                const statusNode = document.getElementById('vim-status-bar');
+                vimModeRef.current = initVimMode(editor, statusNode);
+            });
+        }
     }
 
     return (
-        <div className="h-full w-full relative group border border-border rounded-md overflow-hidden bg-[#05050A]">
-            <div className="absolute top-0 left-0 right-0 h-8 bg-bg-tertiary border-b border-border flex items-center px-4 justify-between z-10">
+        <div className="h-full w-full relative group border border-border rounded-md overflow-hidden bg-[#05050A] flex flex-col">
+            <div className="h-10 bg-bg-tertiary border-b border-border flex items-center px-4 justify-between z-10 shrink-0">
                 <div className="flex items-center gap-2">
                     <span className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></span>
                     <span className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"></span>
                     <span className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50"></span>
                     <span className="ml-2 text-xs font-mono text-text-muted">editor.tsx</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
+                    {/* Get Hint Button */}
+                    <button
+                        onClick={onGetHint}
+                        className="flex items-center gap-x-1 px-2 py-1 rounded border border-accent-secondary/30 text-accent-secondary text-[10px] font-mono hover:bg-accent-secondary/10 transition-all hover:scale-105"
+                        title="Get a conceptual hint"
+                    >
+                        <span>🦉</span>
+                        <span>GET_HINT</span>
+                    </button>
+
+                    {/* Vim Toggle */}
+                    <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-mono transition-colors ${isVimEnabled ? 'text-accent-primary' : 'text-text-muted'}`}>VIM_MODE</span>
+                        <button
+                            onClick={() => setIsVimEnabled(!isVimEnabled)}
+                            className={`w-8 h-4 rounded-full relative transition-colors ${isVimEnabled ? 'bg-accent-primary/50' : 'bg-bg-primary border border-border'}`}
+                        >
+                            <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all ${isVimEnabled ? 'left-4 bg-accent-primary' : 'left-0.5 bg-text-muted'}`} />
+                        </button>
+                    </div>
+
                     <select
                         value={language}
                         onChange={(e) => onChangeLanguage?.(e.target.value)}
@@ -66,7 +135,7 @@ export function CodeEditor({ initialCode, language, onChange, onRun, onSubmit, i
                 </div>
             </div>
 
-            <div className="pt-10 h-full">
+            <div className="flex-1 min-h-0 relative">
                 <Editor
                     height="100%"
                     language={language}
@@ -81,16 +150,19 @@ export function CodeEditor({ initialCode, language, onChange, onRun, onSubmit, i
                         scrollBeyondLastLine: false,
                         padding: { top: 16, bottom: 16 },
                         smoothScrolling: true,
-                        cursorBlinking: "phase",
+                        cursorBlinking: isVimEnabled ? "blink" : "phase",
                         cursorSmoothCaretAnimation: "on",
                         renderLineHighlight: "all",
                     }}
                     path={`file.${language}`} // Force new model on language change
                 />
+
+                {/* Vim Status Bar (Hidden but present for monaco-vim) */}
+                <div id="vim-status-bar" className="absolute bottom-0 left-0 right-0 bg-bg-tertiary text-text-muted font-mono text-[10px] px-2 h-4 pointer-events-none opacity-50" />
             </div>
 
             {/* Run & Submit Buttons Overlay */}
-            <div className="absolute bottom-4 right-4 z-20 flex gap-2">
+            <div className="absolute bottom-6 right-4 z-20 flex gap-2">
                 <button
                     onClick={onRun}
                     disabled={isRunning}
