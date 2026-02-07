@@ -54,10 +54,10 @@ export function StoreModal({ isOpen, onClose, userXp, userFreezes }: StoreModalP
                         onClick={onClose}
                     />
                     <motion.div
-                        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-[480px] p-lg z-50 glass-card border border-border"
-                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                        className="fixed top-1/2 left-1/2 w-[90%] max-w-[480px] p-lg z-50 glass-card border border-border"
+                        initial={{ scale: 0.9, opacity: 0, x: "-50%", y: "-40%" }}
+                        animate={{ scale: 1, opacity: 1, x: "-50%", y: "-50%" }}
+                        exit={{ scale: 0.9, opacity: 0, x: "-50%", y: "-40%" }}
                     >
                         <div className="flex justify-between items-center mb-lg">
                             <h2 className="text-xl font-bold bg-gradient-to-br from-white to-slate-300 bg-clip-text text-transparent">Power-Up Store</h2>
