@@ -1,0 +1,175 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = env("DATABASE_URL")
+}
+
+model Post {
+    id        Int      @id @default(autoincrement())
+    name      String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    createdBy   User   @relation(fields: [createdById], references: [id])
+    createdById String
+
+    @@index([name])
+}
+
+// Necessary for Next auth
+model Account {
+    id                       String  @id @default(cuid())
+    userId                   String
+    type                     String
+    provider                 String
+    providerAccountId        String
+    refresh_token            String? // @db.Text
+    access_token             String? // @db.Text
+    expires_at               Int?
+    token_type               String?
+    scope                    String?
+    id_token                 String? // @db.Text
+    session_state            String?
+    user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    refresh_token_expires_in Int?
+
+    @@unique([provider, providerAccountId])
+}
+
+model Session {
+    id           String   @id @default(cuid())
+    sessionToken String   @unique
+    userId       String
+    expires      DateTime
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+    id            String    @id @default(cuid())
+    name          String?
+    email         String?   @unique
+    emailVerified DateTime?
+    image         String?
+    accounts      Account[]
+    sessions      Session[]
+    posts         Post[]
+
+    // LeetCode Integration
+    leetcodeUsername String?
+
+    // --- AlgoStreak Fields ---
+    streak        Int       @default(0)
+    lastStudiedAt DateTime?
+    maxStreak     Int       @default(0)
+    streakFreezes Int       @default(0)
+    xp            Int       @default(0)
+    gems          Int       @default(0)
+
+    // Notifications
+    timezone         String  @default("UTC")
+    pushSubscription String? // Stores the Web Push subscription object as JSON string
+
+    dailyProgress      DailyProgress[]
+    completedProblems  UserProblem[]
+    curriculumProgress UserCurriculumProgress?
+}
+
+model VerificationToken {
+    identifier String
+    token      String   @unique
+    expires    DateTime
+
+    @@unique([identifier, token])
+}
+
+// --- AlgoStreak Core ---
+
+model Problem {
+    id         String @id @default(cuid())
+    title      String
+    slug       String @unique // leetcode-slug
+    difficulty String // Easy, Medium, Hard
+    category   String // Arrays, Trees, DP, etc.
+
+    // Metadata
+    externalUrl String
+    platform    String @default("leetcode") // LeetCode, HackerRank
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    completions        UserProblem[]
+    curriculumProblems CurriculumProblem[]
+}
+
+model UserProblem {
+    id     String @id @default(cuid())
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+    problemId String
+
+    completedAt DateTime @default(now())
+
+    @@unique([userId, problemId])
+}
+
+model DailyProgress {
+    id     String @id @default(cuid())
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String
+
+    date DateTime // Midnight UTC of the day
+
+    problemsSolved Int @default(0)
+    target         Int @default(2) // The "Daily Duo" target
+
+    isFrozen    Boolean @default(false)
+    isCompleted Boolean @default(false)
+
+    @@unique([userId, date])
+}
+
+// --- Curriculum System ---
+
+model CurriculumWeek {
+    id          String @id @default(cuid())
+    weekNumber  Int    @unique // 1-12
+    title       String // e.g., "Two Pointers & Sliding Window"
+    description String // Week overview
+    category    String // Main technique focus
+
+    problems CurriculumProblem[]
+}
+
+model CurriculumProblem {
+    id String @id @default(cuid())
+
+    week   CurriculumWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+    weekId String
+
+    problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+    problemId String
+
+    dayNumber Int // 1-7 (which day of the week)
+    order     Int // Order within the day (1 or 2 for Daily Duo)
+
+    @@unique([weekId, problemId])
+    @@index([weekId, dayNumber])
+}
+
+model UserCurriculumProgress {
+    id     String @id @default(cuid())
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+    userId String @unique
+
+    currentWeek Int      @default(1)
+    startedAt   DateTime @default(now())
+}
