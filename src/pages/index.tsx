@@ -1,6 +1,7 @@
 import Head from "next/head";
 import { useSession, signIn } from "next-auth/react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Dashboard } from "@/components/Dashboard";
 
@@ -163,6 +164,23 @@ interface HomeProps {
 
 export default function Home({ leaderboard, user: initialUser, curriculum, bonusProblems = [], todaysProblems = [], completedProblemIds = [], isDailyGoalComplete = false }: HomeProps) {
   const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    const { mock_success, plan } = router.query;
+    if (mock_success && plan && session?.user?.id) {
+      // Simple client-side update for local testing (in production this is done via Webhook)
+      fetch("/api/user/update-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: plan === 'lifetime' ? 'LIFETIME' : 'PRO' })
+      }).then(() => {
+        router.replace("/", undefined, { shallow: true });
+        router.reload();
+      });
+    }
+  }, [router.query, session, router]);
+
 
   // Use session user merged with db user if available
   const user = initialUser ? {
@@ -248,6 +266,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         gems: true,
         lastStudiedAt: true,
         leetcodeUsername: true,
+        plan: true,
       },
     }),
     db.userCurriculumProgress.findUnique({

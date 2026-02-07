@@ -4,9 +4,12 @@ import Head from "next/head";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { CodeEditor } from "@/components/CodeEditor";
+import { UserMenu } from "@/components/UserMenu";
 import { runJavaScript, type TestCase, type TestResult } from "@/lib/testRunner";
 import type { GetServerSideProps } from "next";
 import { db } from "@/lib/db";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../api/auth/[...nextauth]";
 
 interface SolvePageProps {
     problem: {
@@ -17,28 +20,53 @@ interface SolvePageProps {
         testCases: TestCase[];
         difficulty: string;
     } | null;
+    isLocked: boolean;
+    user: {
+        name: string | null;
+        image: string | null;
+        plan: string;
+    } | null;
 }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
     const slug = context.params?.slug as string;
 
-    const problemData = await db.problem.findUnique({
-        where: { slug },
-        select: {
-            id: true,
-            title: true,
-            description: true,
-            starterCode: true,
-            testCases: true,
-            difficulty: true,
-        },
-    });
+    const [problemData, user] = await Promise.all([
+        db.problem.findUnique({
+            where: { slug },
+            select: {
+                id: true,
+                title: true,
+                description: true,
+                starterCode: true,
+                testCases: true,
+                difficulty: true,
+            },
+        }),
+        context.req && context.res ? getServerSession(context.req, context.res, authOptions).then((session: any) =>
+            session?.user?.id ? db.user.findUnique({
+                where: { id: session.user.id },
+                select: { plan: true, name: true, image: true }
+            }) : null
+        ) : null
+    ]);
 
     if (!problemData) {
         return {
             notFound: true,
         };
     }
+
+    const userPlan = user?.plan ?? "FREE";
+    const isPro = userPlan === "PRO" || userPlan === "LIFETIME";
+
+    // Determine if this problem belongs to a locked week (Week > 1)
+    const curriculumProblem = await db.curriculumProblem.findFirst({
+        where: { problemId: problemData.id },
+        include: { week: true }
+    });
+
+    const isLocked = curriculumProblem && curriculumProblem.week.weekNumber > 1 && !isPro;
 
     // Parse JSON fields safely
     let parsedTestCases = [];
@@ -51,6 +79,14 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         console.error("Failed to parse problem data", e);
     }
 
+    if (isLocked) {
+        const { mumble } = await import("@/lib/obfuscation");
+        problemData.description = mumble(problemData.description);
+        // Also clear starters and tests to prevent any logic leaks
+        parsedStarterCode = {};
+        parsedTestCases = [];
+    }
+
     return {
         props: {
             problem: {
@@ -58,11 +94,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
                 testCases: parsedTestCases,
                 starterCode: parsedStarterCode,
             },
+            isLocked: !!isLocked,
+            user: user ? {
+                name: user.name,
+                image: user.image,
+                plan: user.plan,
+            } : null
         },
     };
 };
 
-export default function SolvePage({ problem }: SolvePageProps) {
+export default function SolvePage({ problem, isLocked, user }: SolvePageProps) {
     const router = useRouter();
 
     const [language, setLanguage] = useState("javascript");
@@ -293,9 +335,21 @@ export default function SolvePage({ problem }: SolvePageProps) {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <span className="px-2 py-0.5 rounded-sm font-mono text-[10px] uppercase tracking-wider font-bold bg-accent-green/10 text-accent-green border border-accent-green/20">
-                        Easy
+                    <span className={`px-2 py-0.5 rounded-sm font-mono text-[10px] uppercase tracking-wider font-bold border ${problem.difficulty === 'Easy' ? 'bg-accent-green/10 text-accent-green border-accent-green/20' :
+                        problem.difficulty === 'Medium' ? 'bg-accent-primary/10 text-accent-primary border-accent-primary/20' :
+                            'bg-purple-primary/10 text-purple-primary border-purple-primary/20'
+                        }`}>
+                        {problem.difficulty}
                     </span>
+                    {user && (
+                        <div className="ml-2 border-l border-border pl-4">
+                            <UserMenu
+                                userName={user.name}
+                                userImage={user.image}
+                                plan={user.plan}
+                            />
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -324,7 +378,25 @@ export default function SolvePage({ problem }: SolvePageProps) {
                         </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-bg-tertiary scrollbar-track-transparent">
+                    <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-bg-tertiary scrollbar-track-transparent relative">
+                        {isLocked && (
+                            <div className="absolute inset-0 z-50 bg-bg-primary/20 backdrop-blur-[2px] flex items-center justify-center p-xl">
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="bg-bg-tertiary border border-accent-primary/50 text-center p-xl rounded-xl shadow-2xl max-w-sm"
+                                >
+                                    <div className="text-4xl mb-md">🔒</div>
+                                    <h3 className="text-xl font-bold mb-md">Part of AlgoDaily Pro</h3>
+                                    <p className="text-text-secondary mb-xl text-sm leading-relaxed">
+                                        This module is part of the advanced curriculum (Weeks 2-12). Upgrade to Pro to unlock the full 12-week roadmap and unlimited Gemini hints.
+                                    </p>
+                                    <Link href="/curriculum" className="btn btn-primary w-full">
+                                        Unlock Full Roadmap
+                                    </Link>
+                                </motion.div>
+                            </div>
+                        )}
                         {activeTab === 'description' ? (
                             <div className="prose prose-invert max-w-none">
                                 <h2 className="text-2xl font-bold mb-4 font-mono">Description</h2>
@@ -431,14 +503,17 @@ export default function SolvePage({ problem }: SolvePageProps) {
                 </div>
 
                 {/* Right Panel: Editor */}
-                <div className="w-1/2 bg-[#05050A] p-4">
+                <div className="w-1/2 bg-[#05050A] p-4 relative overflow-hidden">
+                    {isLocked && (
+                        <div className="absolute inset-0 z-40 bg-black/40 backdrop-blur-[2px] pointer-events-none" />
+                    )}
                     <CodeEditor
                         initialCode={code}
                         language={language}
-                        onChange={(value) => setCode(value || "")}
-                        onRun={handleRun}
-                        onSubmit={handleSubmit}
-                        onGetHint={handleGetHint}
+                        onChange={(value) => !isLocked && setCode(value || "")}
+                        onRun={!isLocked ? handleRun : () => { }}
+                        onSubmit={!isLocked ? handleSubmit : () => { }}
+                        onGetHint={!isLocked ? handleGetHint : () => { }}
                         isRunning={isRunning}
                         onChangeLanguage={setLanguage}
                     />

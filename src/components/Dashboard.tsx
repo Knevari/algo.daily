@@ -31,6 +31,7 @@ interface User {
     gems: number;
     lastStudiedAt?: Date | string | null;
     leetcodeUsername?: string | null;
+    plan?: string;
 }
 
 interface CurriculumInfo {
@@ -98,6 +99,7 @@ export function Dashboard({
                     <UserMenu
                         userImage={user.image}
                         userName={user.name}
+                        plan={user.plan}
                     />
                 </div>
             </header>

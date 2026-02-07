@@ -78,6 +78,12 @@ model User {
     dailyProgress      DailyProgress[]
     completedProblems  UserProblem[]
     curriculumProgress UserCurriculumProgress?
+
+    // --- Monetization ---
+    plan             String    @default("FREE") // FREE, PRO, LIFETIME
+    stripeCustomerId String?
+    hintCount        Int       @default(0)
+    lastHintAt       DateTime?
 }
 
 model VerificationToken {

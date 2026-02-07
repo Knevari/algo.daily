@@ -3,13 +3,16 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { signOut } from "next-auth/react";
+import Link from "next/link";
 
 interface UserMenuProps {
     userImage?: string | null;
     userName?: string | null;
+    plan?: string;
 }
 
-export function UserMenu({ userImage, userName }: UserMenuProps) {
+export function UserMenu({ userImage, userName, plan = "FREE" }: UserMenuProps) {
+    const isPro = plan === "PRO" || plan === "LIFETIME";
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +58,19 @@ export function UserMenu({ userImage, userName }: UserMenuProps) {
                         transition={{ duration: 0.15 }}
                     >
                         <div className="p-md flex flex-col gap-xs border-b border-border/50 pb-sm mb-sm bg-bg-tertiary/30 rounded-t-sm">
-                            <span className="font-mono font-bold text-sm text-text-primary">{userName ?? "User"}</span>
+                            <div className="flex items-center justify-between gap-sm mb-1">
+                                <span className="font-mono font-bold text-sm text-text-primary truncate">{userName ?? "User"}</span>
+                                {isPro && (
+                                    <span className="bg-accent-primary/20 text-accent-primary text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">
+                                        {plan}
+                                    </span>
+                                )}
+                            </div>
+                            {!isPro && (
+                                <Link href="/curriculum" className="text-[10px] text-accent-primary hover:underline font-mono">
+                                    Upgrade to PRO
+                                </Link>
+                            )}
                         </div>
 
                         <button
