@@ -7,6 +7,7 @@ export interface UserProps {
     image?: string | null;
     streak: number;
     maxStreak: number;
+    streakFreezes: number;
     xp: number;
     gems: number;
     plan: Plan;
@@ -66,6 +67,18 @@ export class User {
             this.props.hintCount += 1;
         }
         this.props.lastHintAt = new Date();
+    }
+
+    // Store Logic
+    purchaseStreakFreeze(cost: number, maxFreezes: number): void {
+        if (this.props.streakFreezes >= maxFreezes) {
+            throw new Error(`You can only hold ${maxFreezes} freezes at a time!`);
+        }
+        if (this.props.xp < cost) {
+            throw new Error(`Not enough XP! Need ${cost} XP.`);
+        }
+        this.props.xp -= cost;
+        this.props.streakFreezes += 1;
     }
 
     toJSON() {

@@ -68,5 +68,39 @@ export class PrismaCurriculumRepository implements ICurriculumRepository {
         });
         return progress?.currentWeek || 1;
     }
+
+    async saveUserProgress(userId: string, weekNumber: number): Promise<void> {
+        await this.prisma.userCurriculumProgress.upsert({
+            where: { userId },
+            create: {
+                userId,
+                currentWeek: weekNumber,
+            },
+            update: {
+                currentWeek: weekNumber,
+            },
+        });
+    }
+
+    async getDailyProblems(weekNumber: number, dayNumber: number): Promise<Problem[]> {
+        const curriculumProblems = await this.prisma.curriculumProblem.findMany({
+            where: {
+                week: { weekNumber },
+                dayNumber,
+            },
+            include: {
+                problem: true,
+                week: true,
+            },
+            orderBy: { order: "asc" },
+        });
+
+        return curriculumProblems.map(cp => new Problem({
+            ...cp.problem,
+            weekNumber: cp.week.weekNumber,
+            // Assuming category falls back to problem category if week doesn't override, or similar logic
+            category: cp.week.category || cp.problem.category
+        }));
+    }
 }
 

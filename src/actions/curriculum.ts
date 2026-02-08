@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { Registry } from "@/infrastructure/Registry";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 
@@ -37,36 +37,29 @@ export async function getCurriculumOverview(): Promise<CurriculumWeekSummary[]> 
     const session = await getServerSession(authOptions);
     const userId = session?.user?.id;
 
-    const weeks = await db.curriculumWeek.findMany({
-        orderBy: { weekNumber: "asc" },
-        include: {
-            problems: {
-                include: {
-                    problem: true,
-                },
-            },
-        },
-    });
+    const curriculumRepo = Registry.getCurriculumRepository();
+    const problemRepo = Registry.getProblemRepository();
+
+    const weeks = await curriculumRepo.getAllWeeks();
 
     // Get user's completed problems
     const completedProblemIds = userId
-        ? (await db.userProblem.findMany({
-            where: { userId },
-            select: { problemId: true },
-        })).map(p => p.problemId)
+        ? await problemRepo.getCompletedProblemIds(userId)
         : [];
 
-    return weeks.map(week => ({
-        id: week.id,
-        weekNumber: week.weekNumber,
-        title: week.title,
-        description: week.description,
-        category: week.category,
-        totalProblems: week.problems.length,
-        completedProblems: week.problems.filter(p =>
-            completedProblemIds.includes(p.problemId)
-        ).length,
-    }));
+    return weeks.map(week => {
+        return {
+            id: week.id,
+            weekNumber: week.weekNumber,
+            title: week.title,
+            description: week.description,
+            category: week.category,
+            totalProblems: week.problems.length,
+            completedProblems: week.problems.filter(p =>
+                completedProblemIds.includes(p.problem.id)
+            ).length,
+        };
+    });
 }
 
 /**
@@ -76,26 +69,16 @@ export async function getCurriculumWeek(weekNumber: number): Promise<CurriculumW
     const session = await getServerSession(authOptions);
     const userId = session?.user?.id;
 
-    const week = await db.curriculumWeek.findUnique({
-        where: { weekNumber },
-        include: {
-            problems: {
-                include: {
-                    problem: true,
-                },
-                orderBy: [{ dayNumber: "asc" }, { order: "asc" }],
-            },
-        },
-    });
+    const curriculumRepo = Registry.getCurriculumRepository();
+    const problemRepo = Registry.getProblemRepository();
+
+    const week = await curriculumRepo.getWeek(weekNumber);
 
     if (!week) return null;
 
     // Get user's completed problems
     const completedProblemIds = userId
-        ? (await db.userProblem.findMany({
-            where: { userId },
-            select: { problemId: true },
-        })).map(p => p.problemId)
+        ? await problemRepo.getCompletedProblemIds(userId)
         : [];
 
     return {
@@ -106,19 +89,22 @@ export async function getCurriculumWeek(weekNumber: number): Promise<CurriculumW
         category: week.category,
         totalProblems: week.problems.length,
         completedProblems: week.problems.filter(p =>
-            completedProblemIds.includes(p.problemId)
+            completedProblemIds.includes(p.problem.id)
         ).length,
-        problems: week.problems.map(cp => ({
-            id: cp.id,
-            problemId: cp.problem.id,
-            title: cp.problem.title,
-            slug: cp.problem.slug,
-            difficulty: cp.problem.difficulty,
-            dayNumber: cp.dayNumber,
-            order: cp.order,
-            isCompleted: completedProblemIds.includes(cp.problemId),
-            externalUrl: cp.problem.externalUrl,
-        })),
+        problems: week.problems.map(cp => {
+            const problemProps = cp.problem.getProperties();
+            return {
+                id: cp.problem.id,
+                problemId: cp.problem.id,
+                title: cp.problem.title,
+                slug: cp.problem.slug,
+                difficulty: problemProps.difficulty,
+                dayNumber: cp.dayNumber,
+                order: cp.order,
+                isCompleted: completedProblemIds.includes(cp.problem.id),
+                externalUrl: problemProps.externalUrl,
+            };
+        }),
     };
 }
 
@@ -129,11 +115,10 @@ export async function getUserCurriculumProgress(): Promise<{ currentWeek: number
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return null;
 
-    const progress = await db.userCurriculumProgress.findUnique({
-        where: { userId: session.user.id },
-    });
+    const curriculumRepo = Registry.getCurriculumRepository();
+    const currentWeek = await curriculumRepo.getCurrentWeek(session.user.id);
 
-    return progress ? { currentWeek: progress.currentWeek } : { currentWeek: 1 };
+    return { currentWeek };
 }
 
 /**
@@ -147,16 +132,8 @@ export async function setCurrentWeek(weekNumber: number): Promise<{ success: boo
         return { success: false };
     }
 
-    await db.userCurriculumProgress.upsert({
-        where: { userId: session.user.id },
-        create: {
-            userId: session.user.id,
-            currentWeek: weekNumber,
-        },
-        update: {
-            currentWeek: weekNumber,
-        },
-    });
+    const curriculumRepo = Registry.getCurriculumRepository();
+    await curriculumRepo.saveUserProgress(session.user.id, weekNumber);
 
     return { success: true };
 }
@@ -168,11 +145,11 @@ export async function getDailyDuoProblems() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return [];
 
+    const curriculumRepo = Registry.getCurriculumRepository();
+    const problemRepo = Registry.getProblemRepository();
+
     // Get user's current week
-    const progress = await db.userCurriculumProgress.findUnique({
-        where: { userId: session.user.id },
-    });
-    const currentWeek = progress?.currentWeek ?? 1;
+    const currentWeek = await curriculumRepo.getCurrentWeek(session.user.id);
 
     // Calculate which day of the week we're on (1-7, cycling)
     const startOfYear = new Date(new Date().getFullYear(), 0, 0);
@@ -181,31 +158,21 @@ export async function getDailyDuoProblems() {
     const dayOfWeek = ((dayOfYear - 1) % 7) + 1; // 1-7
 
     // Get problems for this day
-    const problems = await db.curriculumProblem.findMany({
-        where: {
-            week: { weekNumber: currentWeek },
-            dayNumber: dayOfWeek,
-        },
-        include: {
-            problem: true,
-            week: true,
-        },
-        orderBy: { order: "asc" },
-    });
+    const problems = await curriculumRepo.getDailyProblems(currentWeek, dayOfWeek);
 
     // Get completion status
-    const completedProblemIds = (await db.userProblem.findMany({
-        where: { userId: session.user.id },
-        select: { problemId: true },
-    })).map(p => p.problemId);
+    const completedProblemIds = await problemRepo.getCompletedProblemIds(session.user.id);
 
-    return problems.map(cp => ({
-        id: cp.problem.id,
-        title: cp.problem.title,
-        slug: cp.problem.slug,
-        difficulty: cp.problem.difficulty,
-        category: cp.week?.category ?? cp.problem.category,
-        externalUrl: cp.problem.externalUrl,
-        isCompleted: completedProblemIds.includes(cp.problemId),
-    }));
+    return problems.map(problem => {
+        const props = problem.getProperties();
+        return {
+            id: props.id,
+            title: props.title,
+            slug: props.slug,
+            difficulty: props.difficulty,
+            category: props.category,
+            externalUrl: props.externalUrl,
+            isCompleted: completedProblemIds.includes(props.id),
+        };
+    });
 }

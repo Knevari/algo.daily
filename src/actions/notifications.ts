@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { Registry } from "@/infrastructure/Registry";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import type { PushSubscription } from "@/lib/push";
@@ -18,14 +18,8 @@ export async function savePushSubscription(
     }
 
     try {
-        // Save subscription to user profile
-        // Note: SQLite stores JSON as string
-        await db.user.update({
-            where: { id: session.user.id },
-            data: {
-                pushSubscription: JSON.stringify(subscription),
-            },
-        });
+        const userRepository = Registry.getUserRepository();
+        await userRepository.savePushSubscription(session.user.id, JSON.stringify(subscription));
 
         return { success: true, message: "Notifications enabled!" };
     } catch (error) {
@@ -45,12 +39,8 @@ export async function removePushSubscription(): Promise<{ success: boolean; mess
     }
 
     try {
-        await db.user.update({
-            where: { id: session.user.id },
-            data: {
-                pushSubscription: null,
-            },
-        });
+        const userRepository = Registry.getUserRepository();
+        await userRepository.removePushSubscription(session.user.id);
 
         return { success: true, message: "Notifications disabled" };
     } catch (error) {

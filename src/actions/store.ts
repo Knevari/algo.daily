@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { Registry } from "@/infrastructure/Registry";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { revalidatePath } from "next/cache";
@@ -37,34 +37,23 @@ export async function buyStreakFreeze(): Promise<{ success: boolean; message: st
         return { success: false, message: "Not authenticated" };
     }
 
-    const user = await db.user.findUnique({
-        where: { id: session.user.id },
-        select: { id: true, xp: true, streakFreezes: true },
-    });
+    const userRepository = Registry.getUserRepository();
+    const user = await userRepository.findById(session.user.id);
 
     if (!user) {
         return { success: false, message: "User not found" };
     }
 
-    if (user.streakFreezes >= MAX_FREEZES) {
-        return { success: false, message: `You can only hold ${MAX_FREEZES} freezes at a time!` };
+    try {
+        // Delegate to Domain Logic
+        user.purchaseStreakFreeze(FREEZE_COST_XP, MAX_FREEZES);
+
+        // Persist
+        await userRepository.save(user);
+
+        revalidatePath("/"); // Refresh UI
+        return { success: true, message: "Streak Freeze equipped! ❄️" };
+    } catch (error: any) {
+        return { success: false, message: error.message || "Purchase failed" };
     }
-
-    if (user.xp < FREEZE_COST_XP) {
-        return { success: false, message: `Not enough XP! Need ${FREEZE_COST_XP} XP.` };
-    }
-
-    // Transaction to ensure atomic update
-    await db.$transaction([
-        db.user.update({
-            where: { id: user.id },
-            data: {
-                xp: { decrement: FREEZE_COST_XP },
-                streakFreezes: { increment: 1 },
-            },
-        }),
-    ]);
-
-    revalidatePath("/"); // Refresh UI
-    return { success: true, message: "Streak Freeze equipped! ❄️" };
 }

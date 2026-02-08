@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { Registry } from "@/infrastructure/Registry";
 
 export interface LeaderboardEntry {
     id: string;
@@ -16,19 +16,12 @@ export interface LeaderboardEntry {
  * Get top 50 users by XP for the current week (simulated by total XP for MVP)
  */
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
-    const users = await db.user.findMany({
-        take: 50,
-        orderBy: { xp: "desc" },
-        select: {
-            id: true,
-            name: true,
-            image: true,
-            xp: true,
-            streak: true,
-        },
-    });
+    const userRepository = Registry.getUserRepository();
 
-    return users.map((user, index) => ({
+    // Use the Port instead of direct DB access
+    const users = await userRepository.getLeaderboard(50);
+
+    return users.map((user: any, index: number) => ({
         id: user.id,
         name: user.name ?? `User ${user.id.slice(0, 4)}`,
         image: user.image,

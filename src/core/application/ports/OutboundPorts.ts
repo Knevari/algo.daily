@@ -6,7 +6,9 @@ export interface IUserRepository {
     findById(id: string): Promise<User | null>;
     save(user: User): Promise<void>;
     updateStreak(userId: string, date: Date): Promise<void>;
-    getLeaderboard(): Promise<any[]>;
+    getLeaderboard(limit?: number): Promise<any[]>;
+    savePushSubscription(userId: string, subscription: string): Promise<void>;
+    removePushSubscription(userId: string): Promise<void>;
 }
 
 export interface IProblemRepository {
@@ -23,6 +25,8 @@ export interface ICurriculumRepository {
     getWeek(weekNumber: number): Promise<CurriculumWeek | null>;
     getAllWeeks(): Promise<CurriculumWeek[]>;
     getCurrentWeek(userId: string): Promise<number>;
+    saveUserProgress(userId: string, weekNumber: number): Promise<void>;
+    getDailyProblems(weekNumber: number, dayNumber: number): Promise<Problem[]>;
 }
 
 export interface IPaymentGateway {

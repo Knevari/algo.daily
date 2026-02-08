@@ -21,6 +21,7 @@ export class PrismaUserRepository implements IUserRepository {
             image: user.image,
             streak: user.streak,
             maxStreak: user.maxStreak,
+            streakFreezes: user.streakFreezes, // Added
             xp: user.xp,
             gems: user.gems,
             plan: new Plan(user.plan as PlanType),
@@ -37,6 +38,7 @@ export class PrismaUserRepository implements IUserRepository {
             data: {
                 streak: data.streak,
                 maxStreak: data.maxStreak,
+                streakFreezes: data.streakFreezes, // Added
                 xp: data.xp,
                 gems: data.gems,
                 plan: data.plan as any,
@@ -60,10 +62,10 @@ export class PrismaUserRepository implements IUserRepository {
         await this.save(user);
     }
 
-    async getLeaderboard(): Promise<any[]> {
+    async getLeaderboard(limit = 10): Promise<any[]> {
         return this.prisma.user.findMany({
             orderBy: { xp: 'desc' },
-            take: 10,
+            take: limit,
             select: {
                 id: true,
                 name: true,
@@ -71,6 +73,20 @@ export class PrismaUserRepository implements IUserRepository {
                 xp: true,
                 streak: true,
             },
+        });
+    }
+
+    async savePushSubscription(userId: string, subscription: string): Promise<void> {
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { pushSubscription: subscription },
+        });
+    }
+
+    async removePushSubscription(userId: string): Promise<void> {
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { pushSubscription: null },
         });
     }
 }
